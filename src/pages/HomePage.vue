@@ -76,7 +76,7 @@ const lightingList = [
                       :key="item.id"
                       class="h-20 bg-white/10 rounded-2xl flex items-center justify-between px-6 active:scale-95 transition-all cursor-pointer hover:bg-white/20"
                     >
-                       <span class="text-lg font-medium">{{ item.label }}</span>
+                       <span class="text-2xl font-medium">{{ item.label }}</span>
                        <div class="w-8 h-8 rounded-full border border-white/30 flex items-center justify-center">
                           <Power class="w-4 h-4" :class="item.isOn ? 'text-green-400' : 'text-white/50'" />
                        </div>
@@ -106,7 +106,7 @@ const lightingList = [
                  <!-- Temp Control -->
                  <div class="flex-1 bg-black/20 rounded-3xl flex flex-col items-center justify-between py-8">
                     <button class="p-4 hover:bg-white/5 rounded-full"><ArrowUp class="w-8 h-8" /></button>
-                    <div class="text-5xl font-light">26<span class="text-2xl">°C</span></div>
+                    <div class="text-6xl font-light">26<span class="text-2xl">°C</span></div>
                     <button class="p-4 hover:bg-white/5 rounded-full"><ArrowDown class="w-8 h-8" /></button>
                  </div>
                  <!-- Fan Control -->
@@ -139,14 +139,14 @@ const lightingList = [
               <BaseCard className="!bg-white/5 !border-white/5 !rounded-3xl p-5 flex flex-col justify-between">
                  <span class="text-white/60">温度</span>
                  <div>
-                    <div class="text-4xl font-light mb-2">23<span class="text-lg">°C</span></div>
+                    <div class="text-5xl font-light mb-2">23<span class="text-lg">°C</span></div>
                     <div class="h-1 w-full bg-gradient-to-r from-blue-500 via-green-400 to-orange-500 rounded-full"></div>
                  </div>
               </BaseCard>
               <BaseCard className="!bg-white/5 !border-white/5 !rounded-3xl p-5 flex flex-col justify-between">
                  <span class="text-white/60">湿度</span>
                  <div>
-                    <div class="text-4xl font-light mb-2">50<span class="text-lg">%</span></div>
+                    <div class="text-5xl font-light mb-2">50<span class="text-lg">%</span></div>
                     <div class="h-1 w-full bg-gradient-to-r from-blue-400 to-cyan-300 rounded-full"></div>
                  </div>
               </BaseCard>

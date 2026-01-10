@@ -4,8 +4,8 @@ import { ref } from 'vue'
 export const useCockpitStore = defineStore('cockpit', () => {
   // Background State
   const background = ref({
-    type: 'video' as 'image' | 'video',
-    src: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.webm' // Default Video
+    type: 'image' as 'image' | 'video',
+    src: '/images/bgNew2.jpg' // Default Video
   })
 
   // Lighting State
