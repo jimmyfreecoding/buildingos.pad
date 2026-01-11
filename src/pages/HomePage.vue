@@ -72,16 +72,16 @@ const handleDockClick = (item: any) => {
         <div class="absolute left-1/2 top-10 bottom-10 w-px bg-gradient-to-b from-transparent via-white/20 to-transparent"></div>
 
         <!-- Left Panel: Indoor (Takes up left 50%) -->
-        <div class="flex-1 h-full flex flex-col justify-center px-16 py-10">
+        <div class="flex-1 h-full flex flex-col justify-between px-16 py-10">
            
            <!-- Header -->
-           <div class="flex items-center gap-2 text-white/80 text-xl mb-8">
+           <div class="flex items-center gap-2 text-white/80 text-xl">
               <Thermometer class="w-6 h-6" />
               <span>42F B区 室内</span>
            </div>
            
            <!-- Big Temp & Humidity Row -->
-           <div class="flex items-end gap-12 mb-16">
+           <div class="flex items-end gap-12">
               <!-- Temp -->
               <div class="flex items-baseline leading-none">
                  <span class="text-[12rem] font-bold tracking-tighter">23</span>
@@ -129,16 +129,16 @@ const handleDockClick = (item: any) => {
         </div>
 
         <!-- Right Panel: Outdoor (Takes up right 50%) -->
-        <div class="flex-1 h-full flex flex-col justify-center px-16 py-10">
+        <div class="flex-1 h-full flex flex-col justify-between px-16 py-10">
            
            <!-- Header -->
-           <div class="flex items-center gap-2 text-white/80 text-xl mb-8">
+           <div class="flex items-center gap-2 text-white/80 text-xl">
               <Thermometer class="w-6 h-6" />
               <span>室外</span>
            </div>
            
            <!-- Big Temp & Weather Row -->
-           <div class="flex items-end gap-8 mb-16">
+           <div class="flex items-end gap-8">
               <!-- Temp -->
               <div class="flex items-baseline leading-none">
                  <span class="text-[12rem] font-bold tracking-tighter">20</span>
