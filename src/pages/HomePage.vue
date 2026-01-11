@@ -8,9 +8,10 @@ import ControlPage from './Control.vue'
 import LightPage from './Light.vue'
 import AppLogo from '../components/AppLogo.vue'
 import TimeWidget from '../components/TimeWidget.vue'
+import QualityCard from '../components/QualityCard.vue'
 import { 
   Zap, Fan, Armchair, Lightbulb, 
-  Droplet, Leaf
+  Droplet, Thermometer, CloudRain
 } from 'lucide-vue-next'
 import VScaleScreen from 'v-scale-screen'
 
@@ -61,68 +62,116 @@ const handleDockClick = (item: any) => {
       </header>
 
       <!-- Center Content (Two Columns) -->
-      <div class="flex-1 w-full flex items-center">
+      <div class="flex-1 w-full flex items-center relative">
         
-        <!-- Left Panel: Outdoor (Takes up left 50%) -->
-        <div class="flex-1 h-[500px] flex flex-col justify-between items-center py-4 border-r border-white/10">
+        <!-- Vertical Divider -->
+        <div class="absolute left-1/2 top-10 bottom-10 w-px bg-gradient-to-b from-transparent via-white/20 to-transparent"></div>
+
+        <!-- Left Panel: Indoor (Takes up left 50%) -->
+        <div class="flex-1 h-full flex flex-col justify-center px-16 py-10">
            
-           <h2 class="text-4xl font-bold tracking-wide">望朝大厦室外</h2>
+           <!-- Header -->
+           <div class="flex items-center gap-2 text-white/80 text-xl mb-8">
+              <Thermometer class="w-6 h-6" />
+              <span>42F B区 室内</span>
+           </div>
            
-           <!-- Big Temp -->
-           <div class="flex items-start leading-none">
-              <span class="text-[18rem] font-bold">3</span>
-              <span class="text-5xl mt-6 font-light">°C</span>
+           <!-- Big Temp & Humidity Row -->
+           <div class="flex items-end gap-12 mb-16">
+              <!-- Temp -->
+              <div class="flex items-baseline leading-none">
+                 <span class="text-[12rem] font-bold tracking-tighter">23</span>
+                 <span class="text-[6rem] font-medium mb-4">.7</span>
+                 <span class="text-4xl font-light mb-12 ml-2">°C</span>
+              </div>
+              
+              <!-- Humidity -->
+              <div class="flex flex-col gap-2 mb-8 pl-8 border-l border-white/10">
+                 <div class="flex items-center gap-2 text-white/60">
+                    <Droplet class="w-5 h-5" />
+                    <span>湿度</span>
+                 </div>
+                 <div class="flex items-baseline gap-3">
+                    <span class="text-5xl font-medium">55<span class="text-2xl">.9%</span></span>
+                    <span class="text-green-400 text-xl">舒适</span>
+                 </div>
+              </div>
            </div>
 
-           <!-- Icons Row -->
-           <div class="flex items-center gap-12 text-2xl">
-              <div class="flex items-center gap-3">
-                 <Droplet class="w-8 h-8" />
-                 <span>38%</span>
-              </div>
-              <div class="flex items-center gap-3">
-                 <Leaf class="w-8 h-8" />
-                 <span>28</span>
-              </div>
-           </div>
-
-           <!-- Details Row -->
-           <div class="flex items-center gap-6 text-white/80 text-lg">
-              <span>风力 4m/s</span>
-              <span>云量 28%</span>
-              <span>AQI 80</span>
+           <!-- Cards Row -->
+           <div class="grid grid-cols-3 gap-6">
+              <QualityCard 
+                title="甲醛" 
+                status="安全" 
+                value="0.012" 
+                unit="mg/m³" 
+                :progress="12"
+              />
+              <QualityCard 
+                title="CO₂" 
+                status="清新" 
+                value="558" 
+                unit="ppm" 
+                :progress="30"
+              />
+              <QualityCard 
+                title="PM2.5" 
+                status="优" 
+                value="10" 
+                unit="mg/m³" 
+                :progress="10"
+              />
            </div>
         </div>
 
-        <!-- Right Panel: Indoor (Takes up right 50%) -->
-        <div class="flex-1 h-[500px] flex flex-col justify-between items-center py-4">
-           <h2 class="text-4xl font-bold tracking-wide">
-              室内26F <span class="text-orange-500">A</span>区
-           </h2>
+        <!-- Right Panel: Outdoor (Takes up right 50%) -->
+        <div class="flex-1 h-full flex flex-col justify-center px-16 py-10">
            
-           <!-- Big Temp -->
-           <div class="flex items-start leading-none">
-              <span class="text-[18rem] font-bold">21</span>
-              <span class="text-5xl mt-6 font-light">°C</span>
+           <!-- Header -->
+           <div class="flex items-center gap-2 text-white/80 text-xl mb-8">
+              <Thermometer class="w-6 h-6" />
+              <span>室外</span>
+           </div>
+           
+           <!-- Big Temp & Weather Row -->
+           <div class="flex items-end gap-8 mb-16">
+              <!-- Temp -->
+              <div class="flex items-baseline leading-none">
+                 <span class="text-[12rem] font-bold tracking-tighter">20</span>
+                 <span class="text-[6rem] font-medium mb-4">.2</span>
+                 <span class="text-4xl font-light mb-12 ml-2">°C</span>
+              </div>
+              
+              <!-- Weather -->
+              <div class="flex flex-col gap-2 mb-10">
+                 <div class="text-3xl font-light tracking-wide text-white/90">小雨转晴</div>
+              </div>
            </div>
 
-           <!-- Icons Row -->
-           <div class="flex items-center gap-12 text-2xl">
-              <div class="flex items-center gap-3">
-                 <Droplet class="w-8 h-8" />
-                 <span>38%</span>
-              </div>
-              <div class="flex items-center gap-3">
-                 <Leaf class="w-8 h-8" />
-                 <span>28</span>
-              </div>
-           </div>
-
-           <!-- Details Row -->
-           <div class="flex items-center gap-6 text-white/80 text-lg">
-              <span>Co<sub>2</sub> 38</span>
-              <span>甲醛 28</span>
-              <span>综合 0.121</span>
+           <!-- Cards Row -->
+           <div class="grid grid-cols-3 gap-6">
+              <QualityCard 
+                title="AQI" 
+                status="清新" 
+                value="26" 
+                :progress="26"
+              />
+              <QualityCard 
+                title="PM2.5" 
+                status="优" 
+                value="18" 
+                unit="μg/m³" 
+                :progress="18"
+              />
+                <QualityCard 
+                title="气压" 
+                status="优" 
+                value="18" 
+                unit="μg/m³" 
+                :progress="18"
+              />
+              <!-- Placeholder for symmetry or empty slot -->
+              <div class="opacity-0"></div> 
            </div>
         </div>
 
