@@ -4,14 +4,23 @@
 
 @font-face {
   font-family: 'LynkoType-Regular';
-  src: url('@/assets/fonts/LynkcoType-Regular.ttf');  /* 指定字体文件的路径和文件名 */
+  src: url('@/assets/fonts/LynkcoType-Regular.ttf');
+  font-weight: normal;
+  font-style: normal;
+  unicode-range: U+0030-0039; /* 仅应用于数字 0-9 */
+}
+
+@font-face {
+  font-family: 'DingTalk-JinBuTi';
+  src: url('@/assets/fonts/DingTalk-JinBuTi.ttf');
   font-weight: normal;
   font-style: normal;
 }
 
 :root {
   font-family:
-    'LynkoType-Regular',
+    'LynkoType-Regular', /* 数字优先匹配 */
+    'DingTalk-JinBuTi', /* 中文和其他字符匹配 */
     -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica,
     Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
   line-height: 1.5;

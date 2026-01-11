@@ -5,6 +5,7 @@ import { AppConfig } from '../config'
 import { useCockpitStore } from '../stores/cockpit'
 import AppBackground from '../components/AppBackground.vue'
 import ControlPage from './Control.vue'
+import LightPage from './Light.vue'
 import AppLogo from '../components/AppLogo.vue'
 import TimeWidget from '../components/TimeWidget.vue'
 import { 
@@ -16,7 +17,8 @@ import VScaleScreen from 'v-scale-screen'
 const router = useRouter()
 const store = useCockpitStore()
 
-const drawer = ref(false)
+const controlDrawer = ref(false)
+const lightDrawer = ref(false)
 
 // Bottom Dock Items
 const dockItems = [
@@ -24,7 +26,7 @@ const dockItems = [
   { icon: Lightbulb, label: 'Light' },
   { icon: Armchair, label: 'Seat' },
   { text: '20°', label: 'Temp L' },
-  { icon: Fan, label: 'Climate', active: true, spin: true },
+  { icon: Fan, label: 'Climate', active: true,  spin: true },
   { text: '20°', label: 'Temp R' },
   { icon: Armchair, label: 'Seat R' },
   { icon: Lightbulb, label: 'Light R' },
@@ -33,7 +35,9 @@ const dockItems = [
 
 const handleDockClick = (item: any) => {
   if (item.label === 'Climate') {
-    drawer.value = true
+    controlDrawer.value = true
+  } else if (item.label === 'Light') {
+    lightDrawer.value = true
   }
 }
 
@@ -160,14 +164,26 @@ const handleDockClick = (item: any) => {
 
     <!-- Control Drawer -->
     <el-drawer
-      v-model="drawer"
+      v-model="controlDrawer"
       :modal="false"
       direction="btt"
       :with-header="false"
       size="100%"
       class="!bg-black/10 !text-white backdrop-blur-xl"
     >
-      <ControlPage @close="drawer = false" />
+      <ControlPage @close="controlDrawer = false" />
+    </el-drawer>
+
+    <!-- Light Drawer -->
+    <el-drawer
+      v-model="lightDrawer"
+      :modal="false"
+      direction="btt"
+      :with-header="false"
+      size="100%"
+      class="!bg-black/10 !text-white backdrop-blur-xl"
+    >
+      <LightPage @close="lightDrawer = false" />
     </el-drawer>
   </VScaleScreen>
 </template>
