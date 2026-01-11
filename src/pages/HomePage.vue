@@ -74,31 +74,34 @@ const handleDockClick = (item: any) => {
         <!-- Left Panel: Indoor (Takes up left 50%) -->
         <div class="flex-1 h-full flex flex-col justify-between px-16 py-10">
            
-           <!-- Header -->
-           <div class="flex items-center gap-2 text-white/80 text-xl">
-              <Thermometer class="w-6 h-6" />
-              <span>42F B区 室内</span>
-           </div>
-           
-           <!-- Big Temp & Humidity Row -->
-           <div class="flex items-end gap-12">
-              <!-- Temp -->
-              <div class="flex items-baseline leading-none">
-                 <span class="text-[12rem] font-bold tracking-tighter">23</span>
-                 <span class="text-[6rem] font-medium mb-4">.7</span>
-                 <span class="text-4xl font-light mb-12 ml-2">°C</span>
+           <!-- Center Group -->
+           <div class="flex flex-col gap-8 my-auto">
+              <!-- Header -->
+              <div class="flex items-center gap-2 text-white/80 text-xl">
+                  <Thermometer class="w-6 h-6" />
+                  <span>42F B区 室内</span>
               </div>
               
-              <!-- Humidity -->
-              <div class="flex flex-col gap-2 mb-8 pl-8 border-l border-white/10">
-                 <div class="flex items-center gap-2 text-white/60">
-                    <Droplet class="w-5 h-5" />
-                    <span>湿度</span>
-                 </div>
-                 <div class="flex items-baseline gap-3">
-                    <span class="text-5xl font-medium">55<span class="text-2xl">.9%</span></span>
-                    <span class="text-green-400 text-xl">舒适</span>
-                 </div>
+              <!-- Big Temp & Humidity Row -->
+              <div class="flex items-end gap-12">
+                  <!-- Temp -->
+                  <div class="flex items-baseline leading-none">
+                    <span class="text-[12rem] font-bold tracking-tighter">23</span>
+                    <span class="text-[6rem] font-medium mb-4">.7</span>
+                    <span class="text-4xl font-light mb-12 ml-2">°C</span>
+                  </div>
+                  
+                  <!-- Humidity -->
+                  <div class="flex flex-col gap-2 mb-8 pl-8 border-l border-white/10">
+                    <div class="flex items-center gap-2 text-white/60">
+                        <Droplet class="w-5 h-5" />
+                        <span>湿度</span>
+                    </div>
+                    <div class="flex items-baseline gap-3">
+                        <span class="text-5xl font-medium">55<span class="text-2xl">.9%</span></span>
+                        <span class="text-green-400 text-xl">舒适</span>
+                    </div>
+                  </div>
               </div>
            </div>
 
@@ -131,24 +134,27 @@ const handleDockClick = (item: any) => {
         <!-- Right Panel: Outdoor (Takes up right 50%) -->
         <div class="flex-1 h-full flex flex-col justify-between px-16 py-10">
            
-           <!-- Header -->
-           <div class="flex items-center gap-2 text-white/80 text-xl">
-              <Thermometer class="w-6 h-6" />
-              <span>室外</span>
-           </div>
-           
-           <!-- Big Temp & Weather Row -->
-           <div class="flex items-end gap-8">
-              <!-- Temp -->
-              <div class="flex items-baseline leading-none">
-                 <span class="text-[12rem] font-bold tracking-tighter">20</span>
-                 <span class="text-[6rem] font-medium mb-4">.2</span>
-                 <span class="text-4xl font-light mb-12 ml-2">°C</span>
+           <!-- Center Group -->
+           <div class="flex flex-col gap-8 my-auto">
+              <!-- Header -->
+              <div class="flex items-center gap-2 text-white/80 text-xl">
+                  <Thermometer class="w-6 h-6" />
+                  <span>室外</span>
               </div>
               
-              <!-- Weather -->
-              <div class="flex flex-col gap-2 mb-10">
-                 <div class="text-3xl font-light tracking-wide text-white/90">小雨转晴</div>
+              <!-- Big Temp & Weather Row -->
+              <div class="flex items-end gap-8">
+                  <!-- Temp -->
+                  <div class="flex items-baseline leading-none">
+                    <span class="text-[12rem] font-bold tracking-tighter">20</span>
+                    <span class="text-[6rem] font-medium mb-4">.2</span>
+                    <span class="text-4xl font-light mb-12 ml-2">°C</span>
+                  </div>
+                  
+                  <!-- Weather -->
+                  <div class="flex flex-col gap-2 mb-10">
+                    <div class="text-3xl font-light tracking-wide text-white/90">小雨转晴</div>
+                  </div>
               </div>
            </div>
 
@@ -174,8 +180,6 @@ const handleDockClick = (item: any) => {
                 unit="μg/m³" 
                 :progress="18"
               />
-              <!-- Placeholder for symmetry or empty slot -->
-              <div class="opacity-0"></div> 
            </div>
         </div>
 
