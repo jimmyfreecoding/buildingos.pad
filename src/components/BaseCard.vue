@@ -15,7 +15,7 @@ const props = withDefaults(defineProps<Props>(), {
 <template>
   <div
     :class="cn(
-      'relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-2xl p-6 shadow-xl transition-all duration-300 hover:bg-white/10',
+      'relative overflow-hidden rounded-3xl border border-white/10 bg-white/10 backdrop-blur-2xl p-6 transition-all duration-300 hover:bg-white/20',
       props.className
     )"
   >

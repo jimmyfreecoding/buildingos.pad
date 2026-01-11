@@ -15,36 +15,25 @@ const isVideo = computed(() => props.type === 'video')
 
 <template>
   <div class="absolute inset-0 w-full h-full overflow-hidden bg-black pointer-events-none">
-    <transition name="fade" mode="out-in">
-      <video
-        v-if="isVideo"
-        :src="props.src"
-        autoplay
-        loop
-        muted
-        playsinline
-        class="absolute inset-0 w-full h-full object-cover"
-      />
-      <img
-        v-else
-        :src="props.src"
-        alt="Background"
-        class="absolute inset-0 w-full h-full object-cover"
-      />
-    </transition>
+    <video
+      v-if="isVideo"
+      :src="props.src"
+      autoplay
+      loop
+      muted
+      playsinline
+      class="absolute inset-0 w-full h-full object-cover"
+    />
+    <img
+      v-else
+      :src="props.src"
+      alt="Background"
+      class="absolute inset-0 w-full h-full object-cover"
+    />
     <!-- Overlay for better text readability if needed -->
-    <div class="absolute inset-0 bg-black/20" />
+    <div class="absolute inset-0 bg-black/50" />
   </div>
 </template>
 
 <style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.5s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
 </style>

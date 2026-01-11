@@ -1,18 +1,22 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { AppConfig } from '../config'
 import { useCockpitStore } from '../stores/cockpit'
 import AppBackground from '../components/AppBackground.vue'
+import ControlPage from './Control.vue'
+import AppLogo from '../components/AppLogo.vue'
+import TimeWidget from '../components/TimeWidget.vue'
 import { 
-  Zap, Fan, Armchair, Lightbulb, MapPin, Music,
-  Droplet, Leaf, Wind, Cloud
+  Zap, Fan, Armchair, Lightbulb, 
+  Droplet, Leaf
 } from 'lucide-vue-next'
 import VScaleScreen from 'v-scale-screen'
 
+const router = useRouter()
 const store = useCockpitStore()
 
-const currentTime = '21:20'
-const currentDate = '2024年2月25日 周日'
+const drawer = ref(false)
 
 // Bottom Dock Items
 const dockItems = [
@@ -27,6 +31,12 @@ const dockItems = [
   { icon: Zap, label: 'Charge R' },
 ]
 
+const handleDockClick = (item: any) => {
+  if (item.label === 'Climate') {
+    drawer.value = true
+  }
+}
+
 </script>
 
 <template>
@@ -40,17 +50,10 @@ const dockItems = [
       <!-- Top Header -->
       <header class="flex justify-between items-start pt-8 px-10">
         <!-- Logo -->
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 border-2 border-white/80 flex items-center justify-center rounded-sm">
-             <span class="text-xl font-bold">Z</span>
-          </div>
-          <span class="text-2xl font-medium tracking-widest">ZEEKR</span>
-        </div>
+        <AppLogo />
         
         <!-- Date/Time -->
-        <div class="text-right text-white/90 font-medium">
-          {{ currentDate }} {{ currentTime }}
-        </div>
+        <TimeWidget />
       </header>
 
       <!-- Center Content (Two Columns) -->
@@ -59,7 +62,7 @@ const dockItems = [
         <!-- Left Panel: Outdoor (Takes up left 50%) -->
         <div class="flex-1 h-[500px] flex flex-col justify-between items-center py-4 border-r border-white/10">
            
-           <h2 class="text-4xl font-bold tracking-wide">极企大厦室外</h2>
+           <h2 class="text-4xl font-bold tracking-wide">望朝大厦室外</h2>
            
            <!-- Big Temp -->
            <div class="flex items-start leading-none">
@@ -122,9 +125,12 @@ const dockItems = [
       </div>
 
       <!-- Bottom Dock -->
-      <div class="h-28 bg-black/30 backdrop-blur-md flex justify-center items-center gap-20 px-10">
+      <div class="h-28 bg-black/40 backdrop-blur-md flex justify-center items-center gap-20 px-10">
          <template v-for="(item, index) in dockItems" :key="index">
-            <div class="flex flex-col items-center justify-center gap-1 opacity-90 hover:opacity-100 transition-opacity cursor-pointer">
+            <div 
+               class="flex flex-col items-center justify-center gap-1 opacity-90 hover:opacity-100 cursor-pointer"
+               @click="handleDockClick(item)"
+            >
                <!-- Icon or Text or Image -->
                <img 
                  v-if="'image' in item && typeof item.image === 'string'" 
@@ -151,6 +157,18 @@ const dockItems = [
       </div>
 
     </div>
+
+    <!-- Control Drawer -->
+    <el-drawer
+      v-model="drawer"
+      :modal="false"
+      direction="btt"
+      :with-header="false"
+      size="100%"
+      class="!bg-black/10 !text-white backdrop-blur-xl"
+    >
+      <ControlPage @close="drawer = false" />
+    </el-drawer>
   </VScaleScreen>
 </template>
 
@@ -161,5 +179,18 @@ const dockItems = [
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+:deep(.el-drawer) {
+  background: rgba(0, 0, 0, 0.85) !important;
+  backdrop-filter: blur(20px);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+}
+
+:deep(.el-drawer__body) {
+  padding: 0;
+  overflow: hidden;
 }
 </style>
