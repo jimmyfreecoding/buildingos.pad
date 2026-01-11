@@ -6,6 +6,7 @@ import { useCockpitStore } from '../stores/cockpit'
 import AppBackground from '../components/AppBackground.vue'
 import ControlPage from './Control.vue'
 import LightPage from './Light.vue'
+import SpacePage from './Space.vue'
 import AppLogo from '../components/AppLogo.vue'
 import TimeWidget from '../components/TimeWidget.vue'
 import QualityCard from '../components/QualityCard.vue'
@@ -20,6 +21,7 @@ const store = useCockpitStore()
 
 const controlDrawer = ref(false)
 const lightDrawer = ref(false)
+const spaceDrawer = ref(false)
 
 // Bottom Dock Items
 const dockItems = [
@@ -39,6 +41,8 @@ const handleDockClick = (item: any) => {
     controlDrawer.value = true
   } else if (item.label === 'Light') {
     lightDrawer.value = true
+  } else if (item.label === 'Seat') {
+    spaceDrawer.value = true
   }
 }
 
@@ -233,6 +237,18 @@ const handleDockClick = (item: any) => {
       class="!bg-black/10 !text-white backdrop-blur-xl"
     >
       <LightPage @close="lightDrawer = false" />
+    </el-drawer>
+
+    <!-- Space Drawer -->
+    <el-drawer
+      v-model="spaceDrawer"
+      :modal="false"
+      direction="btt"
+      :with-header="false"
+      size="100%"
+      class="!bg-black/10 !text-white backdrop-blur-xl"
+    >
+      <SpacePage @close="spaceDrawer = false" />
     </el-drawer>
   </VScaleScreen>
 </template>
