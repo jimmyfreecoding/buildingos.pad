@@ -4,11 +4,12 @@ import { useDateFormat, useNow } from '@vueuse/core'
 import AppBackground from '../components/AppBackground.vue'
 import AppLogo from '../components/AppLogo.vue'
 import EnvironmentControl from './EnvironmentControl.vue'
+import Setting from '../components/Setting.vue'
 import VideoMeeting from './VideoMeeting.vue'
 import { useCockpitStore } from '../stores/cockpit'
 import { 
   Phone, Cast, Video, SlidersHorizontal, 
-  HelpCircle, LayoutGrid, Hash
+  HelpCircle, LayoutGrid, Hash, Settings
 } from 'lucide-vue-next'
 
 const store = useCockpitStore()
@@ -32,6 +33,11 @@ const handleMenuClick = (item: any) => {
     videoDrawer.value = true
   }
 }
+const showSetting = ref(false)
+
+const handleSettingClick = () => {
+  showSetting.value = true
+}
 </script>
 
 <template>
@@ -54,7 +60,7 @@ const handleMenuClick = (item: any) => {
           </div>
           <span class="text-sm font-medium">会务联系：7723822</span>
         </div>
-        <Cast class="w-6 h-6 text-white/80" />
+        <Settings class="w-6 h-6 text-white/80 cursor-pointer" @click="handleSettingClick" />
       </div>
     </header>
 
@@ -133,5 +139,7 @@ const handleMenuClick = (item: any) => {
     >
       <VideoMeeting @close="videoDrawer = false" />
     </el-drawer>
+
+    <Setting v-model="showSetting" />
   </div>
 </template>

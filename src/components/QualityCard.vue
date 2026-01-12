@@ -34,12 +34,18 @@ const props = withDefaults(defineProps<Props>(), {
       </div>
 
       <!-- Progress Bar -->
-      <div class="h-1.5 w-full bg-gradient-to-r from-blue-500 via-green-400 to-orange-500 rounded-full relative opacity-80">
-         <!-- Indicator Dot (Optional: can be removed if only gradient bar is needed) -->
+      <div class="h-1.5 w-full bg-[#1e293b] rounded-full relative overflow-hidden">
+         <!-- Gradient Track -->
+         <div class="absolute inset-0 bg-gradient-to-r from-blue-500 via-white to-orange-500 opacity-20"></div>
+         
+         <!-- Indicator Dot -->
          <div 
-          class="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow-md"
+          class="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-[0_0_8px_rgba(255,255,255,0.5)] border border-blue-500"
           :style="{ left: `${progress}%` }"
         ></div>
+        
+        <!-- Active Segment (optional styling to match UI) -->
+        <div class="absolute inset-y-0 left-0 bg-blue-500/50 rounded-l-full" :style="{ width: `${progress}%` }"></div>
       </div>
     </div>
   </div>

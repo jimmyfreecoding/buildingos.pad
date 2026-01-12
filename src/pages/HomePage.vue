@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { AppConfig } from '../config'
 import { useCockpitStore } from '../stores/cockpit'
 import AppBackground from '../components/AppBackground.vue'
+import SmartBuildingPage from './SmartBuilding.vue'
 import ControlPage from './Control.vue'
 import LightPage from './Light.vue'
 import SpacePage from './Space.vue'
@@ -22,13 +23,14 @@ const store = useCockpitStore()
 const controlDrawer = ref(false)
 const lightDrawer = ref(false)
 const spaceDrawer = ref(false)
+const smartBuildingDrawer = ref(false)
 
 // Bottom Dock Items
 const dockItems = [
   { icon: Zap, label: 'Charge' },
   { icon: Lightbulb, label: 'Light' },
   { icon: Armchair, label: 'Seat' },
-  { text: '20°', label: 'Temp L' },
+  { text: '20°', label: 'Temp L' ,action:'smartBuilding'},
   { icon: Fan, label: 'Climate', active: true,  spin: true },
   { text: '20°', label: 'Temp R' },
   { icon: Armchair, label: 'Seat R' },
@@ -43,6 +45,8 @@ const handleDockClick = (item: any) => {
     lightDrawer.value = true
   } else if (item.label === 'Seat') {
     spaceDrawer.value = true
+  } else if (item.action === 'smartBuilding') {
+    smartBuildingDrawer.value = true
   }
 }
 
@@ -253,6 +257,18 @@ const handleDockClick = (item: any) => {
       class="!bg-black/10 !text-white backdrop-blur-xl"
     >
       <SpacePage @close="spaceDrawer = false" />
+    </el-drawer>
+
+    <!-- Smart Building Drawer -->
+    <el-drawer
+      v-model="smartBuildingDrawer"
+      :modal="false"
+      direction="btt"
+      :with-header="false"
+      size="100%"
+      class="!bg-black/10 !text-white backdrop-blur-xl"
+    >
+      <SmartBuildingPage @close="smartBuildingDrawer = false" />
     </el-drawer>
   </VScaleScreen>
 </template>
