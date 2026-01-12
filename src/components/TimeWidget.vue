@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useDateFormat, useNow } from '@vueuse/core'
 import { ElMessage } from 'element-plus'
+import { Delete, X } from 'lucide-vue-next'
 
 const now = useNow()
 const currentTime = useDateFormat(now, 'HH:mm')
@@ -29,6 +30,29 @@ const handlePinSubmit = () => {
     pinCode.value = ''
   }
 }
+
+const handleKeypadClick = (key: string | number) => {
+  if (typeof key === 'number') {
+    if (pinCode.value.length < 4) {
+      pinCode.value += key.toString()
+      if (pinCode.value.length === 4) {
+        setTimeout(() => handlePinSubmit(), 200)
+      }
+    }
+  } else if (key === 'delete') {
+    if (pinCode.value.length > 0) {
+      pinCode.value = pinCode.value.slice(0, -1)
+    }
+  } else if (key === 'close') {
+    showPinDialog.value = false
+    pinCode.value = ''
+  }
+}
+
+const handleReset = () => {
+  localStorage.removeItem('initData')
+  window.location.href = '/'
+}
 </script>
 
 <template>
@@ -41,33 +65,57 @@ const handlePinSubmit = () => {
   <el-dialog
     v-model="showPinDialog"
     title="请输入管理密码"
-    width="300px"
+    width="360px"
     :append-to-body="true"
     :modal="true"
     :show-close="false"
     class="pin-dialog"
     center
   >
-    <div class="py-4">
-      <el-input
-        v-model="pinCode"
-        type="password"
-        placeholder="4位数字密码"
-        maxlength="4"
-        show-password
-        input-style="text-align: center; letter-spacing: 0.5em; font-size: 1.2em;"
-        @keyup.enter="handlePinSubmit"
-      />
-    </div>
-    <template #footer>
-      <div class="flex justify-center gap-4">
-        <el-button @click="showPinDialog = false">取消</el-button>
-        <el-button type="primary" @click="handlePinSubmit">确认</el-button>
+    <div class="py-4 flex flex-col items-center gap-6 select-none">
+      <!-- PIN Display -->
+      <div class="flex gap-6 justify-center mb-2">
+         <div 
+           v-for="i in 4" 
+           :key="i"
+           class="w-4 h-4 rounded-full border border-white/30 transition-all duration-200"
+           :class="pinCode.length >= i ? 'bg-white border-white scale-110' : 'bg-transparent'"
+         ></div>
       </div>
-    </template>
+
+      <!-- Keypad -->
+      <div class="grid grid-cols-3 gap-4 w-full px-2">
+         <button 
+           v-for="num in 9" 
+           :key="num"
+           class="h-16 rounded-full bg-white/5 hover:bg-white/10 active:bg-white/20 text-2xl font-medium transition-all flex items-center justify-center active:scale-95"
+           @click="handleKeypadClick(num)"
+         >
+           {{ num }}
+         </button>
+         <button 
+           class="h-16 rounded-full bg-white/5 hover:bg-white/10 active:bg-white/20 flex items-center justify-center transition-all active:scale-95 text-white/50 hover:text-white"
+           @click="handleKeypadClick('close')"
+         >
+            取消
+         </button>
+         <button 
+           class="h-16 rounded-full bg-white/5 hover:bg-white/10 active:bg-white/20 text-2xl font-medium transition-all flex items-center justify-center active:scale-95"
+           @click="handleKeypadClick(0)"
+         >
+           0
+         </button>
+         <button 
+           class="h-16 rounded-full bg-white/5 hover:bg-white/10 active:bg-white/20 flex items-center justify-center transition-all active:scale-95 text-white/50 hover:text-white"
+           @click="handleKeypadClick('delete')"
+         >
+            <Delete class="w-6 h-6" />
+         </button>
+      </div>
+    </div>
   </el-dialog>
 
-  <!-- Configuration Dialog (Blank Page) -->
+  <!-- Configuration Dialog -->
   <el-dialog
     v-model="showConfigDialog"
     fullscreen
@@ -75,9 +123,24 @@ const handlePinSubmit = () => {
     :append-to-body="true"
     class="config-dialog"
   >
-    <div class="w-full h-full flex flex-col items-center justify-center text-white/50">
-      <div class="text-4xl font-light mb-4">配置界面</div>
-      <div class="text-lg">暂无内容</div>
+    <div class="w-full h-full flex flex-col items-center justify-center p-20">
+      <div class="text-4xl font-light mb-12 text-white">管理员配置</div>
+      
+      <div class="grid grid-cols-3 gap-8 w-full max-w-4xl">
+        <!-- Reset Card -->
+        <div 
+          class="bg-white/5 border border-white/10 rounded-3xl p-8 flex flex-col items-center gap-6 cursor-pointer hover:bg-white/10 hover:border-white/20 transition-all active:scale-95"
+          @click="handleReset"
+        >
+           <div class="w-20 h-20 rounded-full bg-red-500/20 flex items-center justify-center text-red-400">
+             <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+           </div>
+           <div class="text-center">
+             <div class="text-2xl font-medium mb-2 text-white">重新初始化</div>
+             <div class="text-white/50">清除当前配置并返回初始化页面</div>
+           </div>
+        </div>
+      </div>
     </div>
   </el-dialog>
 </template>
@@ -95,11 +158,14 @@ const handlePinSubmit = () => {
 }
 
 :deep(.config-dialog) {
-  background: #1a1a1a;
+  /* Let Element Plus dark theme handle background */
 }
 
 :deep(.config-dialog .el-dialog__headerbtn .el-dialog__close) {
-  color: white;
   font-size: 24px;
+}
+
+:deep(.config-dialog .el-dialog__body) {
+  height: 100%;
 }
 </style>
