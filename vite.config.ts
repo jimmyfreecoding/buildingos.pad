@@ -10,6 +10,10 @@ export default defineConfig({
   build: {
     sourcemap: 'hidden',
   },
+  server: {
+    port:5174,
+    host: '0.0.0.0',
+  },
   plugins: [
     vue(),
     Inspector(),

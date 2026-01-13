@@ -5,7 +5,7 @@ export const useCockpitStore = defineStore('cockpit', () => {
   // Background State
   const background = ref({
     type: 'video' as 'image' | 'video',
-    src: '/pad/video/rain.mp4' // Default Video
+    src: '/pad/video/snow.mp4' // Default Video
   })
 
   // Lighting State

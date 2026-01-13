@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { AppConfig } from '../config'
 import { useCockpitStore } from '../stores/cockpit'
@@ -9,12 +9,14 @@ import ControlPage from './Control.vue'
 import LightPage from './Light.vue'
 import SpacePage from './Space.vue'
 import EnergyPage from './Energy.vue'
+import OutAirPage from './OutAir.vue'
 import AppLogo from '../components/AppLogo.vue'
 import TimeWidget from '../components/TimeWidget.vue'
 import QualityCard from '../components/QualityCard.vue'
 import { 
   Zap, Fan, Armchair, Lightbulb, 
-  Droplet, Thermometer, CloudRain
+  Droplet, Thermometer, CloudRain,
+  Users, Wind, Phone, ShieldAlert, Info
 } from 'lucide-vue-next'
 import VScaleScreen from 'v-scale-screen'
 
@@ -26,19 +28,30 @@ const lightDrawer = ref(false)
 const spaceDrawer = ref(false)
 const smartBuildingDrawer = ref(false)
 const energyDrawer = ref(false)
+const outAirDrawer = ref(false)
+
+// Outdoor Temp Variable
+const outdoorTemp = ref(20.2)
+const outdoorTempInt = computed(() => Math.floor(outdoorTemp.value))
+const outdoorTempDec = computed(() => (outdoorTemp.value % 1).toFixed(1).substring(1))
+
+// Indoor Temp Variable
+const indoorTemp = ref(23.7)
+const indoorTempInt = computed(() => Math.floor(indoorTemp.value))
+const indoorTempDec = computed(() => (indoorTemp.value % 1).toFixed(1).substring(1))
 
 // Bottom Dock Items
-const dockItems = [
-  { icon: Zap, label: 'Charge' },
-  { icon: Lightbulb, label: 'Light' },
-  { icon: Armchair, label: 'Seat' },
-  { text: '20°', label: 'Temp L' ,action:'smartBuilding'},
-  { icon: Fan, label: 'Climate', active: true,  spin: true },
-  { text: '20°', label: 'Temp R' },
-  { icon: Armchair, label: 'Seat R' },
-  { icon: Lightbulb, label: 'Light R' },
-  { icon: Zap, label: 'Charge R' },
-]
+const dockItems = computed(() => [
+  { icon: Zap, label: 'Charge' }, // 1. 能耗统计
+  { icon: Lightbulb, label: 'Light' }, // 2. 照明控制
+  { icon: Users, label: 'Seat' }, // 3. 空间占用 (Updated Icon)
+  { text: indoorTemp.value.toString(), label: 'AirQualityL' }, // 4. 空气质量 (Temp L -> AirQualityL)
+  { icon: Fan, label: 'Climate', active: true,  spin: true }, // 5. 温控界面
+  { text: outdoorTemp.value.toString(), label: 'AirQualityR', action: 'outAir' }, // 6. 空气质量 (Temp R -> AirQualityR)
+  { icon: Phone, label: 'Service' }, // 7. 服务页面
+  { icon: ShieldAlert, label: 'Emergency' }, // 8. 应急呼叫
+  { icon: Info, label: 'SmartInfo', action: 'smartBuilding' }, // 9. 智能化介绍
+])
 
 const handleDockClick = (item: any) => {
   if (item.label === 'Climate') {
@@ -51,6 +64,8 @@ const handleDockClick = (item: any) => {
     smartBuildingDrawer.value = true
   } else if (item.label === 'Charge') {
     energyDrawer.value = true
+  } else if (item.action === 'outAir') {
+    outAirDrawer.value = true
   }
 }
 
@@ -85,7 +100,7 @@ const handleDockClick = (item: any) => {
            <!-- Center Group -->
            <div class="flex flex-col gap-8 my-auto">
               <!-- Header -->
-              <div class="flex items-center gap-2 text-white/80 text-xl">
+              <div class="flex items-center gap-2 text-white/80 text-2xl">
                   <Thermometer class="w-6 h-6" />
                   <span>42F B区 室内</span>
               </div>
@@ -94,8 +109,8 @@ const handleDockClick = (item: any) => {
               <div class="flex items-end gap-12">
                   <!-- Temp -->
                   <div class="flex items-baseline leading-none">
-                    <span class="text-[12rem] font-bold tracking-tighter">23</span>
-                    <span class="text-[6rem] font-medium mb-4">.7</span>
+                    <span class="text-[12rem] font-bold tracking-tighter">{{ indoorTempInt }}</span>
+                    <span class="text-[6rem] font-medium mb-4">{{ indoorTempDec }}</span>
                     <span class="text-4xl font-light mb-12 ml-2">°C</span>
                   </div>
                   
@@ -145,7 +160,7 @@ const handleDockClick = (item: any) => {
            <!-- Center Group -->
            <div class="flex flex-col gap-8 my-auto">
               <!-- Header -->
-              <div class="flex items-center gap-2 text-white/80 text-xl">
+              <div class="flex items-center gap-2 text-white/80 text-2xl">
                   <Thermometer class="w-6 h-6" />
                   <span>室外</span>
               </div>
@@ -154,8 +169,8 @@ const handleDockClick = (item: any) => {
               <div class="flex items-end gap-8">
                   <!-- Temp -->
                   <div class="flex items-baseline leading-none">
-                    <span class="text-[12rem] font-bold tracking-tighter">20</span>
-                    <span class="text-[6rem] font-medium mb-4">.2</span>
+                    <span class="text-[12rem] font-bold tracking-tighter">{{ outdoorTempInt }}</span>
+                    <span class="text-[6rem] font-medium mb-4">{{ outdoorTempDec }}</span>
                     <span class="text-4xl font-light mb-12 ml-2">°C</span>
                   </div>
                   
@@ -285,6 +300,18 @@ const handleDockClick = (item: any) => {
       class="!bg-black/10 !text-white backdrop-blur-xl"
     >
       <EnergyPage @close="energyDrawer = false" />
+    </el-drawer>
+
+    <!-- OutAir Drawer -->
+    <el-drawer
+      v-model="outAirDrawer"
+      :modal="false"
+      direction="btt"
+      :with-header="false"
+      size="100%"
+      class="!bg-black/10 !text-white backdrop-blur-xl"
+    >
+      <OutAirPage @close="outAirDrawer = false" />
     </el-drawer>
   </VScaleScreen>
 </template>
