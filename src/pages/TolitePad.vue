@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { useCockpitStore } from '../stores/cockpit'
+import AppBackground from '../components/AppBackground.vue'
 import AppLogo from '../components/AppLogo.vue'
 import TimeWidget from '../components/TimeWidget.vue'
 import BaseCard from '../components/BaseCard.vue'
 import QualityCard from '../components/QualityCard.vue'
-
+const store = useCockpitStore()
 // Data
 const cleaningTime = '09:00'
 const cleaningDate = '07月01日'
@@ -32,7 +34,10 @@ const getStatusColor = (status: string) => {
 </script>
 
 <template>
-  <div class="w-full h-full bg-[#0f1b2a] text-white flex flex-col p-6 box-border overflow-hidden">
+      <!-- Background Layer -->
+    <AppBackground :type="store.background.type" :src="store.background.src" />
+  <div class="relative z-10 w-full h-full text-white flex flex-col p-6 box-border overflow-hidden">
+
     <!-- Header -->
     <header class="flex justify-between items-start px-2 shrink-0 mb-4">
       <AppLogo />
@@ -46,7 +51,7 @@ const getStatusColor = (status: string) => {
         <!-- Left Column -->
         <div class="col-span-3 flex flex-col gap-6 h-full min-h-0">
           <!-- Recent Cleaning -->
-          <BaseCard title="最近保洁时间" class="h-[35%] !bg-[#152234] border-none shrink-0 flex flex-col">
+          <BaseCard title="最近保洁时间" class="h-[35%]  border-none shrink-0 flex flex-col">
              <div class="flex-1 flex flex-col justify-center mt-2">
                <div class="text-[clamp(2.5rem,4vw,3.75rem)] font-medium tracking-tight mb-2 leading-none">{{ cleaningTime }}</div>
                <div class="text-lg text-white/50">{{ cleaningDate }}</div>
@@ -54,7 +59,7 @@ const getStatusColor = (status: string) => {
           </BaseCard>
 
           <!-- Other Floors -->
-          <BaseCard title="其他楼层" class="h-[65%] !bg-[#152234] border-none min-h-0 flex flex-col">
+          <BaseCard title="其他楼层" class="h-[65%]  border-none min-h-0 flex flex-col">
             <div class="flex-1 flex flex-col gap-6 justify-center mt-2">
               <div v-for="floor in otherFloors" :key="floor.floor" class="flex items-center justify-start">
                 <span class="text-[clamp(1rem,1.5vw,1.25rem)] text-white/80 font-medium whitespace-nowrap mr-2 xl:mr-4">{{ floor.floor }}-空闲{{ floor.free }}</span>
@@ -73,15 +78,12 @@ const getStatusColor = (status: string) => {
 
         <!-- Center Panel -->
         <div class="col-span-9 h-full min-h-0">
-           <div class="w-full h-full rounded-3xl bg-[#152234] flex flex-col items-center justify-center relative overflow-hidden">
-              <!-- Background Wave Effect -->
+           <BaseCard title="当前楼层" class="w-full h-full border-none min-h-0 flex flex-col">
               <div class="absolute inset-0 opacity-30">
                  <div class="absolute top-1/2 left-0 w-full h-64 -translate-y-1/2 bg-gradient-to-r from-transparent via-blue-500/20 to-transparent blur-3xl transform rotate-12"></div>
                  <div class="absolute top-1/2 left-0 w-full h-64 -translate-y-1/2 bg-gradient-to-r from-transparent via-cyan-500/10 to-transparent blur-3xl transform -rotate-6"></div>
               </div>
-              
-              <h1 class="text-4xl font-medium mb-12 z-10 tracking-widest">{{ currentFloor.floor }}</h1>
-              
+              <h1 class="text-4xl font-medium mb-12 z-10 tracking-widest">{{ currentFloor.floor }} 男卫生间</h1>
               <div class="flex items-center justify-between w-full max-w-4xl px-12 z-10">
                  <template v-for="(status, idx) in currentFloor.statuses" :key="idx">
                     <div class="flex-1 flex justify-center relative">
@@ -95,7 +97,7 @@ const getStatusColor = (status: string) => {
                     </div>
                  </template>
               </div>
-           </div>
+           </BaseCard>
         </div>
       </div>
 
@@ -110,7 +112,7 @@ const getStatusColor = (status: string) => {
           :unit="item.unit"
           :progress="item.progress"
           :status-color="item.statusColor"
-          class="!bg-[#152234] border-none h-full"
+          class=" border-none h-full"
         />
       </div>
     </div>

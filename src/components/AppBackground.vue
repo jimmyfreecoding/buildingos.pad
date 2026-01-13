@@ -4,10 +4,12 @@ import { computed } from 'vue'
 interface Props {
   type?: 'image' | 'video'
   src: string
+  overlayOpacity?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
   type: 'image',
+  overlayOpacity: 0.4,
 })
 
 const isVideo = computed(() => props.type === 'video')
@@ -31,7 +33,10 @@ const isVideo = computed(() => props.type === 'video')
       class="absolute inset-0 w-full h-full object-cover"
     />
     <!-- Overlay for better text readability if needed -->
-    <div class="absolute inset-0 bg-black/50" />
+    <div 
+      class="absolute inset-0 bg-black" 
+      :style="{ opacity: props.overlayOpacity }" 
+    />
   </div>
 </template>
 
