@@ -14,6 +14,7 @@
   "dependencies": {
     "@vueuse/core": "^14.1.0",
     "clsx": "^2.1.1",
+    "echarts": "^6.0.0",
     "element-plus": "^2.13.1",
     "lucide-vue-next": "^0.511.0",
     "mqtt": "^5.3.5",

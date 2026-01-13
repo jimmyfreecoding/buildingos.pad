@@ -8,6 +8,7 @@ import SmartBuildingPage from './SmartBuilding.vue'
 import ControlPage from './Control.vue'
 import LightPage from './Light.vue'
 import SpacePage from './Space.vue'
+import EnergyPage from './Energy.vue'
 import AppLogo from '../components/AppLogo.vue'
 import TimeWidget from '../components/TimeWidget.vue'
 import QualityCard from '../components/QualityCard.vue'
@@ -24,6 +25,7 @@ const controlDrawer = ref(false)
 const lightDrawer = ref(false)
 const spaceDrawer = ref(false)
 const smartBuildingDrawer = ref(false)
+const energyDrawer = ref(false)
 
 // Bottom Dock Items
 const dockItems = [
@@ -47,6 +49,8 @@ const handleDockClick = (item: any) => {
     spaceDrawer.value = true
   } else if (item.action === 'smartBuilding') {
     smartBuildingDrawer.value = true
+  } else if (item.label === 'Charge') {
+    energyDrawer.value = true
   }
 }
 
@@ -269,6 +273,18 @@ const handleDockClick = (item: any) => {
       class="!bg-black/10 !text-white backdrop-blur-xl"
     >
       <SmartBuildingPage @close="smartBuildingDrawer = false" />
+    </el-drawer>
+
+    <!-- Energy Drawer -->
+    <el-drawer
+      v-model="energyDrawer"
+      :modal="false"
+      direction="btt"
+      :with-header="false"
+      size="100%"
+      class="!bg-black/10 !text-white backdrop-blur-xl"
+    >
+      <EnergyPage @close="energyDrawer = false" />
     </el-drawer>
   </VScaleScreen>
 </template>
