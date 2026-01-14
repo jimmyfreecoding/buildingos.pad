@@ -10,6 +10,7 @@ import LightPage from './Light.vue'
 import SpacePage from './Space.vue'
 import EnergyPage from './Energy.vue'
 import OutAirPage from './OutAir.vue'
+import InAirPage from './InAir.vue'
 import AppLogo from '../components/AppLogo.vue'
 import TimeWidget from '../components/TimeWidget.vue'
 import QualityCard from '../components/QualityCard.vue'
@@ -29,6 +30,7 @@ const spaceDrawer = ref(false)
 const smartBuildingDrawer = ref(false)
 const energyDrawer = ref(false)
 const outAirDrawer = ref(false)
+const inAirDrawer = ref(false)
 
 // Outdoor Temp Variable
 const outdoorTemp = ref(20.2)
@@ -45,7 +47,7 @@ const dockItems = computed(() => [
   { icon: Zap, label: 'Charge' }, // 1. 能耗统计
   { icon: Lightbulb, label: 'Light' }, // 2. 照明控制
   { icon: Users, label: 'Seat' }, // 3. 空间占用 (Updated Icon)
-  { text: indoorTemp.value.toString(), label: 'AirQualityL' }, // 4. 空气质量 (Temp L -> AirQualityL)
+  { text: indoorTemp.value.toString(), label: 'AirQualityL', action: 'inAir' }, // 4. 空气质量 (Temp L -> AirQualityL)
   { icon: Fan, label: 'Climate', active: true,  spin: true }, // 5. 温控界面
   { text: outdoorTemp.value.toString(), label: 'AirQualityR', action: 'outAir' }, // 6. 空气质量 (Temp R -> AirQualityR)
   { icon: Phone, label: 'Service' }, // 7. 服务页面
@@ -66,6 +68,8 @@ const handleDockClick = (item: any) => {
     energyDrawer.value = true
   } else if (item.action === 'outAir') {
     outAirDrawer.value = true
+  } else if (item.action === 'inAir') {
+    inAirDrawer.value = true
   }
 }
 
@@ -131,12 +135,12 @@ const handleDockClick = (item: any) => {
            <!-- Cards Row -->
            <div class="grid grid-cols-3 gap-6">
               <QualityCard 
-                title="甲醛" 
-                status="安全" 
-                value="0.012" 
-                unit="mg/m³" 
-                :progress="12"
-              />
+                 title="甲醛" 
+                 status="安全" 
+                 value="0.012" 
+                 unit="mg/m³" 
+                 :progress="12" 
+               />
               <QualityCard 
                 title="CO₂" 
                 status="清新" 
@@ -190,14 +194,14 @@ const handleDockClick = (item: any) => {
                 :progress="26"
               />
               <QualityCard 
-                title="PM2.5" 
-                status="优" 
-                value="18" 
-                unit="μg/m³" 
-                :progress="18"
-              />
-                <QualityCard 
                 title="气压" 
+                status="正常" 
+                value="1016" 
+                unit="hPa" 
+                :progress="66"
+              />
+              <QualityCard 
+                title="PM2.5" 
                 status="优" 
                 value="18" 
                 unit="μg/m³" 
@@ -312,6 +316,18 @@ const handleDockClick = (item: any) => {
       class="!bg-black/10 !text-white backdrop-blur-xl"
     >
       <OutAirPage @close="outAirDrawer = false" />
+    </el-drawer>
+
+    <!-- InAir Drawer -->
+    <el-drawer
+      v-model="inAirDrawer"
+      :modal="false"
+      direction="btt"
+      :with-header="false"
+      size="100%"
+      class="!bg-black/10 !text-white backdrop-blur-xl"
+    >
+      <InAirPage @close="inAirDrawer = false" />
     </el-drawer>
   </VScaleScreen>
 </template>

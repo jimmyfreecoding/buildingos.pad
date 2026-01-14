@@ -85,42 +85,7 @@ const acStatus = {
           </BaseCard>
         </div>
 
-        <!-- AC Control Section (Compact) -->
-        <div class="h-64 flex flex-col gap-4">
-           <div class="flex justify-between items-end">
-             <div class="text-xl font-bold tracking-wide">8号楼-1F 开放区域 空调控制</div>
-             <div class="flex items-center gap-1 text-xs text-white/60 cursor-pointer hover:text-white">
-                温度不适? 点击反馈 <ArrowRight class="w-3 h-3" />
-             </div>
-           </div>
 
-           <BaseCard className="flex-1 !border-white/5 !bg-white/5 !rounded-3xl p-6 flex flex-col justify-between">
-              <!-- Global Controls -->
-              <div class="flex flex-col gap-2">
-                <div class="text-sm text-white/60">整区设置</div>
-                <div class="flex gap-4">
-                  <button class="w-32 h-10 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-sm font-medium">全关</button>
-                  <button class="w-32 h-10 rounded-full bg-white/20 hover:bg-white/30 active:scale-95 transition-all text-sm font-medium">全开</button>
-                </div>
-              </div>
-
-              <!-- Status Bar -->
-              <div class="h-14 bg-black/20 rounded-xl flex items-center justify-between px-8 mt-2">
-                 <div class="flex items-center gap-2">
-                    <span class="text-white/60 text-sm">当前温度:</span>
-                    <span class="text-lg font-medium">{{ acStatus.temp }}°C</span>
-                 </div>
-                 <div class="flex items-center gap-2">
-                    <span class="text-white/60 text-sm">空调模式:</span>
-                    <span class="text-lg font-medium">{{ acStatus.mode }}</span>
-                 </div>
-                 <div class="flex items-center gap-2">
-                    <span class="text-white/60 text-sm">风量大小:</span>
-                    <span class="text-lg font-medium">{{ acStatus.fan }}</span>
-                 </div>
-              </div>
-           </BaseCard>
-        </div>
 
       </div>
 

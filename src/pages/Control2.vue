@@ -13,7 +13,7 @@ import {
   Zap, Fan, RotateCw, Power, Settings, Sun, 
   ChevronLeft, ChevronRight, Pause, X,
   Thermometer, Droplet, Wind, CloudFog,
-  ArrowUp, ArrowDown, ArrowRight
+  ArrowUp, ArrowDown
 } from 'lucide-vue-next'
 import VScaleScreen from 'v-scale-screen'
 
@@ -41,13 +41,48 @@ const lightingList = [
       <TimeWidget />
     </header>
 
-
     <!-- Main Grid Content -->
     <div class="grid grid-cols-12 gap-6 flex-1 min-h-0 mb-8">
+      
+      <!-- Column 1: Lighting Control (Span 4) -->
+      <div class="col-span-4 h-full">
+         <BaseCard className="h-full !border-white/5 !rounded-3xl p-6 flex flex-col gap-4">
+            <div class="text-xl font-bold tracking-wide mb-2">照明控制</div>
+            <div class="flex flex-1 gap-6">
+               <!-- Left Slider Area -->
+               <div class="w-24 bg-black/20 rounded-2xl flex flex-col justify-between items-center py-6">
+                  <Sun class="w-6 h-6 text-white/70" />
+                  <!-- Mock Slider Track -->
+                  <div class="w-2 flex-1 bg-white/10 rounded-full my-4 relative">
+                     <div class="absolute bottom-0 left-0 w-full h-1/2 bg-white rounded-full"></div>
+                  </div>
+                  <Sun class="w-6 h-6 text-white" />
+               </div>
+               
+               <!-- Right Button List -->
+               <div class="flex-1 flex flex-col gap-4">
+                  <div 
+                    v-for="item in lightingList" 
+                    :key="item.id"
+                    class="h-20 bg-white/10 rounded-2xl flex items-center justify-between px-6 active:scale-95 cursor-pointer hover:bg-white/20"
+                  >
+                     <span class="text-2xl font-medium">{{ item.label }}</span>
+                     <div class="w-8 h-8 rounded-full border border-white/30 flex items-center justify-center">
+                        <Power class="w-4 h-4" :class="item.isOn ? 'text-green-400' : 'text-white/50'" />
+                     </div>
+                  </div>
+               </div>
+            </div>
 
+            <!-- Bottom Power Button -->
+            <button class="h-20 bg-white/10 rounded-2xl flex items-center justify-center hover:bg-white/20 active:scale-95">
+               <Power class="w-8 h-8" />
+            </button>
+         </BaseCard>
+      </div>
 
       <!-- Column 2: Climate Control (Span 4) -->
-      <div class="col-span-8 h-full">
+      <div class="col-span-4 h-full">
          <BaseCard className="h-full !border-white/5 !rounded-3xl p-6 flex flex-col gap-4">
             <div class="text-xl font-bold tracking-wide mb-2">空调控制</div>
             <!-- Status Bar -->

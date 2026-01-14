@@ -34,9 +34,22 @@ const props = withDefaults(defineProps<Props>(), {
       </div>
 
       <!-- Progress Bar -->
-      <div class="h-1.5 w-full bg-[#1e293b] rounded-full relative overflow-hidden">
-         <!-- Gradient Track -->
-         <div class="absolute inset-0 bg-gradient-to-r from-blue-500 via-white to-orange-500 opacity-20"></div>
+      <div 
+        class="w-full rounded-full relative overflow-hidden mt-2"
+        :class="[
+          (title === '温度' || title === '湿度' || title === '甲醛' || title === 'CO₂' || title === 'PM2.5' || title === 'TVOC' || title === 'AQI' || title === '气压') ? 'h-3' : 'h-1.5',
+          title === '温度' ? 'bg-gradient-to-r from-blue-500 via-green-400 to-orange-400' : 
+          title === '湿度' ? 'bg-gradient-to-r from-yellow-400 via-green-400 via-teal-400 to-blue-500' : 
+          title === '甲醛' ? 'bg-gradient-to-r from-green-500 to-red-500' : 
+          title === 'CO₂' ? 'bg-gradient-to-r from-green-500 via-yellow-400 to-red-500' : 
+          title === 'PM2.5' ? 'bg-gradient-to-r from-green-500 via-yellow-400 via-orange-400 via-red-500 via-purple-500 to-rose-900' : 
+          title === 'TVOC' ? 'bg-gradient-to-r from-green-500 to-red-500' : 
+          title === 'AQI' ? 'bg-gradient-to-r from-[#009966] via-[#FFDE33] via-[#FF9933] via-[#CC0033] via-[#660099] to-[#7E0023]' : 
+          title === '气压' ? 'bg-gradient-to-r from-green-500 via-yellow-400 via-orange-400 via-red-500 via-purple-500 to-rose-900' : 'bg-[#1e293b]'
+        ]"
+      >
+         <!-- Standard Gradient Track for non-special items -->
+         <div v-if="!['温度', '湿度', '甲醛', 'CO₂', 'PM2.5', 'TVOC', 'AQI', '气压'].includes(title)" class="absolute inset-0 bg-gradient-to-r from-blue-500 via-white to-orange-500 opacity-20"></div>
          
          <!-- Indicator Dot -->
          <div 
@@ -44,8 +57,8 @@ const props = withDefaults(defineProps<Props>(), {
           :style="{ left: `${progress}%` }"
         ></div>
         
-        <!-- Active Segment (optional styling to match UI) -->
-        <div class="absolute inset-y-0 left-0 bg-blue-500/50 rounded-l-full" :style="{ width: `${progress}%` }"></div>
+        <!-- Active Segment (optional styling to match UI) for non-special items -->
+        <div v-if="!['温度', '湿度', '甲醛', 'CO₂', 'PM2.5', 'TVOC', 'AQI', '气压'].includes(title)" class="absolute inset-y-0 left-0 bg-blue-500/50 rounded-l-full" :style="{ width: `${progress}%` }"></div>
       </div>
     </div>
   </div>
