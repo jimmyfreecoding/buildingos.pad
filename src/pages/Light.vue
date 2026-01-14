@@ -5,11 +5,15 @@ import AppLogo from '../components/AppLogo.vue'
 import TimeWidget from '../components/TimeWidget.vue'
 import { 
   Lightbulb, Power, Thermometer, Snowflake, Wind, 
-  ArrowRight
+  ArrowRight, Home
 } from 'lucide-vue-next'
 
 // Define Emits
 const emit = defineEmits(['close'])
+
+const handleHome = () => {
+  emit('close')
+}
 
 // Mock Data for Lights
 const lights = Array.from({ length: 18 }, (_, i) => ({
@@ -127,6 +131,17 @@ const acStatus = {
          </BaseCard>
       </div>
 
+    </div>
+
+    <!-- Bottom Nav -->
+    <div class="flex justify-center mt-6 shrink-0">
+       <button 
+         @click="handleHome"
+         class="bg-[#2a2a2a] hover:bg-[#333] text-white px-8 py-3 rounded-full flex items-center gap-3 transition-colors border border-white/10"
+       >
+         <Home class="w-5 h-5" />
+         <span class="text-lg">返回首页</span>
+       </button>
     </div>
   </div>
 </template>

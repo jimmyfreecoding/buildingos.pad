@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-import { Zap, Activity, X } from 'lucide-vue-next'
+import { Zap, Activity, X, Home } from 'lucide-vue-next'
 import * as echarts from 'echarts'
 
 const emit = defineEmits(['close'])
+
+const handleHome = () => {
+  emit('close')
+}
 
 const activeTab = ref('日')
 const tabs = ['日', '周', '月']
@@ -121,13 +125,7 @@ const handleResize = () => {
 
 <template>
   <div class="w-full h-full flex flex-col p-8 relative">
-    <!-- Close Button -->
-    <button 
-      @click="$emit('close')" 
-      class="absolute top-8 right-8 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-50"
-    >
-      <X class="w-6 h-6" />
-    </button>
+
 
     <!-- Header -->
     <div class="flex items-center justify-between mb-8">
@@ -186,6 +184,17 @@ const handleResize = () => {
     <div class="flex-1 bg-slate-800/40 rounded-2xl p-6 border border-white/5 flex flex-col min-h-0">
       <div class="text-white/40 text-sm mb-4">日用电量(kwh)</div>
       <div ref="chartRef" class="flex-1 w-full h-full min-h-[300px]"></div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <div class="flex justify-center mt-6 shrink-0">
+       <button 
+         @click="handleHome"
+         class="bg-[#2a2a2a] hover:bg-[#333] text-white px-8 py-3 rounded-full flex items-center gap-3 transition-colors border border-white/10"
+       >
+         <Home class="w-5 h-5" />
+         <span class="text-lg">返回首页</span>
+       </button>
     </div>
   </div>
 </template>

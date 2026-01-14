@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { Brain, Check } from 'lucide-vue-next'
+import { Brain, Check, Home } from 'lucide-vue-next'
 
 const levels = [
   { level: 4, label: '感知控制', active: true },
@@ -40,6 +40,10 @@ const buildingImage = ref('https://trae-api-us.mchost.guru/api/ide/v1/text_to_im
 const emit = defineEmits<{
   (e: 'close'): void
 }>()
+
+const handleHome = () => {
+  emit('close')
+}
 </script>
 
 <template>
@@ -52,7 +56,7 @@ const emit = defineEmits<{
     </div>
 
     <!-- Title -->
-    <h1 class="text-2xl font-bold mb-12">杭州极氪大厦</h1>
+    <h1 class="text-2xl font-bold mb-12">极企大厦</h1>
 
     <div class="flex-1 relative flex">
       <!-- Left Column: Levels -->
@@ -128,6 +132,17 @@ const emit = defineEmits<{
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <div class="flex justify-center mt-6 shrink-0">
+       <button 
+         @click="handleHome"
+         class="bg-[#2a2a2a] hover:bg-[#333] text-white px-8 py-3 rounded-full flex items-center gap-3 transition-colors border border-white/10"
+       >
+         <Home class="w-5 h-5" />
+         <span class="text-lg">返回首页</span>
+       </button>
     </div>
   </div>
 </template>

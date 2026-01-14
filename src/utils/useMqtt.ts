@@ -6,7 +6,7 @@ export default function useMqtt() {
 
   const startMqtt = () => {
     //设置订阅地址
-    PublicMqtt.value = new MQTT()
+    PublicMqtt.value = new MQTT('')
     //初始化mqtt
     PublicMqtt.value.init()
     //链接mqtt
