@@ -1,28 +1,39 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { AppConfig } from '../config'
+import { ref } from 'vue'
 import { useCockpitStore } from '../stores/cockpit'
-import AppBackground from '../components/AppBackground.vue'
 import BaseCard from '../components/BaseCard.vue'
-import ToggleItem from '../components/ToggleItem.vue'
-import VerticalControl from '../components/VerticalControl.vue'
-import MonitorWidget from '../components/MonitorWidget.vue'
 import AppLogo from '../components/AppLogo.vue'
 import TimeWidget from '../components/TimeWidget.vue'
 import { 
-  Zap, Fan, RotateCw, Power, Settings, Sun, 
-  ChevronLeft, ChevronRight, Pause, X,
-  Thermometer, Droplet, Wind, CloudFog,
-  ArrowUp, ArrowDown, ArrowRight, Home
+  Fan, Power,  
+  ArrowUp, ArrowDown, Wind, Home,
+  Snowflake, Sun as SunIcon
 } from 'lucide-vue-next'
 
-const store = useCockpitStore()
 
 // Define Emits
 const emit = defineEmits(['close'])
 
 const handleHome = () => {
   emit('close')
+}
+
+const fanSpeed = ref('mid') // 'low', 'mid', 'high'
+
+const setFanSpeed = (speed: string) => {
+  fanSpeed.value = speed
+}
+
+const acMode = ref('cool') // 'vent', 'cool', 'heat'
+
+const setAcMode = (mode: string) => {
+  acMode.value = mode
+}
+
+const isAcOn = ref(true)
+
+const toggleAcPower = () => {
+  isAcOn.value = !isAcOn.value
 }
 
 // Mock Data for new Layout
@@ -68,22 +79,85 @@ const lightingList = [
                   <button class="p-4 hover:bg-white/5 rounded-full"><ArrowDown class="w-8 h-8" /></button>
                </div>
                <!-- Fan Control -->
-               <div class="flex-1 bg-black/20 rounded-3xl flex flex-col items-center justify-between py-8">
-                  <button class="p-4 hover:bg-white/5 rounded-full"><ArrowUp class="w-8 h-8" /></button>
-                  <div class="flex flex-col items-center gap-2">
-                     <Fan class="w-10 h-10 animate-spin-slow" />
+               <div class="flex-1 bg-black/20 rounded-3xl flex flex-col items-center justify-between py-4 px-4 gap-2">
+                  <!-- High -->
+                  <div 
+                    @click="setFanSpeed('high')"
+                    class="w-full flex-1 rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer"
+                    :class="fanSpeed === 'high' ? 'bg-white/20 text-white' : 'hover:bg-white/5 text-white/40'"
+                  >
                      <div class="flex gap-1">
-                        <div class="w-2 h-2 bg-white rounded-full"></div>
-                        <div class="w-2 h-2 bg-white rounded-full"></div>
-                        <div class="w-2 h-2 bg-white/30 rounded-full"></div>
+                        <Fan class="w-5 h-5 " />
+                        <Fan class="w-5 h-5 " />
+                        <Fan class="w-5 h-5 " />
                      </div>
+                     <span class="text-2xl mt-1">高风</span>
                   </div>
-                  <button class="p-4 hover:bg-white/5 rounded-full"><ArrowDown class="w-8 h-8" /></button>
+
+                  <!-- Mid -->
+                  <div 
+                    @click="setFanSpeed('mid')"
+                    class="w-full flex-1 rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer"
+                    :class="fanSpeed === 'mid' ? 'bg-white/20 text-white' : 'hover:bg-white/5 text-white/40'"
+                  >
+                     <div class="flex gap-1">
+                        <Fan class="w-5 h-5 " />
+                        <Fan class="w-5 h-5 " />
+                     </div>
+                     <span class="text-2xl mt-1">中风</span>
+                  </div>
+
+                  <!-- Low -->
+                  <div 
+                    @click="setFanSpeed('low')"
+                    class="w-full flex-1 rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer"
+                    :class="fanSpeed === 'low' ? 'bg-white/20 text-white' : 'hover:bg-white/5 text-white/40'"
+                  >
+                     <Fan class="w-5 h-5 " />
+                     <span class="text-2xl mt-1">低风</span>
+                  </div>
+               </div>
+
+               <!-- Mode Control -->
+               <div class="flex-1 bg-black/20 rounded-3xl flex flex-col items-center justify-between py-4 px-4 gap-2">
+                  <!-- Vent -->
+                  <div 
+                    @click="setAcMode('vent')"
+                    class="w-full flex-1 rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer"
+                    :class="acMode === 'vent' ? 'bg-white/20 text-white' : 'hover:bg-white/5 text-white/40'"
+                  >
+                     <Wind class="w-6 h-6" />
+                     <span class="text-2xl mt-1">换气</span>
+                  </div>
+
+                  <!-- Cool -->
+                  <div 
+                    @click="setAcMode('cool')"
+                    class="w-full flex-1 rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer"
+                    :class="acMode === 'cool' ? 'bg-white/20 text-white' : 'hover:bg-white/5 text-white/40'"
+                  >
+                     <Snowflake class="w-6 h-6" />
+                     <span class="text-2xl mt-1">制冷</span>
+                  </div>
+
+                  <!-- Heat -->
+                  <div 
+                    @click="setAcMode('heat')"
+                    class="w-full flex-1 rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer"
+                    :class="acMode === 'heat' ? 'bg-white/20 text-white' : 'hover:bg-white/5 text-white/40'"
+                  >
+                     <SunIcon class="w-6 h-6" />
+                     <span class="text-2xl mt-1">制热</span>
+                  </div>
                </div>
             </div>
 
             <!-- Bottom Power Button -->
-            <button class="h-20 bg-white/10 rounded-2xl flex items-center justify-center hover:bg-white/20 active:scale-95">
+            <button 
+              @click="toggleAcPower"
+              class="power-btn"
+              :class="isAcOn ? 'power-btn-on' : 'power-btn-off'"
+            >
                <Power class="w-8 h-8" />
             </button>
          </BaseCard>

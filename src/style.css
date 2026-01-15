@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  /* Power Button States */
+  .power-btn {
+    @apply h-20 rounded-2xl flex items-center justify-center transition-colors duration-200 cursor-pointer;
+  }
+  
+  .power-btn-on {
+    @apply bg-[#F25A4A] hover:bg-[#FF6A5A] active:bg-[#C54A3A];
+  }
+  
+  .power-btn-off {
+    @apply bg-[#9A9A9A] hover:bg-[#8F8F8F] active:bg-[#2B2B2B];
+  }
+}
+
+
 @font-face {
   font-family: 'LynkoType-Regular';
   src: url('@/assets/fonts/LynkcoType-Regular.ttf');

@@ -12,10 +12,10 @@ const form = reactive({
 
 const padTypes = [
   { label: 'Wall Pad (墙面中控)', value: 'wallPad' },
-  { label: 'Tolite Pad (卫浴中控)', value: 'tolitePad' },
-  { label: 'Room Control (客房中控)', value: 'roomControl' },
-  { label: 'Meeting Control (会议中控)', value: 'meetingControl' },
-  { label: 'Door Pad (门口屏)', value: 'doorPad' }
+  { label: 'Tolite Pad (卫生间中控)', value: 'tolitePad' },
+  { label: 'Room Control (独立房间中控)', value: 'roomControl' },
+  { label: 'Meeting Control (会议室中控)', value: 'meetingControl' },
+  { label: 'Door Pad (独立房间门屏)', value: 'doorPad' }
 ]
 
 const ratios = [

@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import BaseCard from '../components/BaseCard.vue'
 import AppLogo from '../components/AppLogo.vue'
 import TimeWidget from '../components/TimeWidget.vue'
 import { 
-  Lightbulb, Power, Thermometer, Snowflake, Wind, 
-  ArrowRight, Home
+  Lightbulb, Home, Power
 } from 'lucide-vue-next'
 
 // Define Emits
@@ -16,12 +15,33 @@ const handleHome = () => {
 }
 
 // Mock Data for Lights
-const lights = Array.from({ length: 18 }, (_, i) => ({
+const lights = ref(Array.from({ length: 18 }, (_, i) => ({
   id: i,
   name: i % 3 === 0 ? '电话亭外筒灯' : '吊灯-吊灯一',
   isOn: i % 5 !== 0, // Some off
   type: i % 3 === 0 ? 'spot' : 'pendant'
-}))
+})))
+
+const toggleLight = (id: number) => {
+  const light = lights.value.find(l => l.id === id)
+  if (light) {
+    light.isOn = !light.isOn
+  }
+}
+
+const toggleAll = (state: boolean) => {
+  lights.value.forEach(light => {
+    light.isOn = state
+  })
+}
+
+// Compute if all lights are currently on to determine global toggle state
+const isAllOn = computed(() => lights.value.every(l => l.isOn))
+
+const toggleGlobalPower = () => {
+  const newState = !isAllOn.value
+  toggleAll(newState)
+}
 
 // Mock Data for Map Markers
 const mapMarkers = [
@@ -33,11 +53,6 @@ const mapMarkers = [
   { id: 6, label: '照明 4', x: 35, y: 80, active: true },
 ]
 
-const acStatus = {
-  temp: 17,
-  mode: '制冷',
-  fan: '中风'
-}
 
 </script>
 
@@ -61,21 +76,13 @@ const acStatus = {
           <div class="text-xl font-bold tracking-wide">8号楼-1F 开放区域 照明控制</div>
           
           <BaseCard className="flex-1 !border-white/5 !bg-white/5 !rounded-3xl p-6 flex flex-col gap-6">
-            <!-- Global Controls -->
-            <div class="flex flex-col gap-2">
-              <div class="text-sm text-white/60">整区设置</div>
-              <div class="flex gap-4">
-                <button class="w-32 h-10 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-sm font-medium">全关</button>
-                <button class="w-32 h-10 rounded-full bg-white/20 hover:bg-white/30 active:scale-95 transition-all text-sm font-medium">全开</button>
-              </div>
-            </div>
-
             <!-- Light Grid -->
             <div class="grid grid-cols-6 gap-4 overflow-y-auto pr-2">
               <div 
                 v-for="light in lights" 
                 :key="light.id"
-                class="aspect-[4/3] rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                @click="toggleLight(light.id)"
+                class="aspect-[4/4] rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
                 :class="light.isOn ? 'bg-white/20 hover:bg-white/25' : 'bg-white/5 hover:bg-white/10'"
               >
                  <!-- Icon Placeholder (using Lightbulb for generic) -->
@@ -83,10 +90,19 @@ const acStatus = {
                    class="w-8 h-8" 
                    :class="light.isOn ? 'text-white fill-white' : 'text-white/40'" 
                  />
-                 <span class="text-xs text-center px-2 truncate w-full text-white/80">{{ light.name }}</span>
+                 <span class="text-center px-2 truncate w-full text-white/80">{{ light.name }}</span>
               </div>
             </div>
+             <!-- Bottom Power Button -->
+            <button 
+              @click="toggleGlobalPower"
+              class="power-btn"
+              :class="isAllOn ? 'power-btn-on' : 'power-btn-off'"
+            >
+               <Power class="w-8 h-8" />
+            </button>
           </BaseCard>
+         
         </div>
 
 

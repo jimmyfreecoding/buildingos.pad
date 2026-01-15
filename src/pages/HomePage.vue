@@ -11,13 +11,14 @@ import SpacePage from './Space.vue'
 import EnergyPage from './Energy.vue'
 import OutAirPage from './OutAir.vue'
 import InAirPage from './InAir.vue'
+import ServicePage from './Service.vue'
 import AppLogo from '../components/AppLogo.vue'
 import TimeWidget from '../components/TimeWidget.vue'
 import QualityCard from '../components/QualityCard.vue'
 import { 
-  Zap, Fan, Armchair, Lightbulb, 
-  Droplet, Thermometer, CloudRain,
-  Users, Wind, Phone, ShieldAlert, Info
+  Zap, Fan, Lightbulb, 
+  Droplet, Thermometer,CircleEllipsis,
+  UserRound, Building2,Siren
 } from 'lucide-vue-next'
 import VScaleScreen from 'v-scale-screen'
 
@@ -31,6 +32,8 @@ const smartBuildingDrawer = ref(false)
 const energyDrawer = ref(false)
 const outAirDrawer = ref(false)
 const inAirDrawer = ref(false)
+const serviceDrawer = ref(false)
+const showSOSDialog = ref(false)
 
 // Outdoor Temp Variable
 const outdoorTemp = ref(20.2)
@@ -46,13 +49,13 @@ const indoorTempDec = computed(() => (indoorTemp.value % 1).toFixed(1).substring
 const dockItems = computed(() => [
   { icon: Zap, label: 'Charge' }, // 1. 能耗统计
   { icon: Lightbulb, label: 'Light' }, // 2. 照明控制
-  { icon: Users, label: 'Seat' }, // 3. 空间占用 (Updated Icon)
+  { icon: CircleEllipsis, label: 'Seat' }, // 3. 空间占用 (Updated Icon)
   { text: indoorTemp.value.toString(), label: 'AirQualityL', action: 'inAir' }, // 4. 空气质量 (Temp L -> AirQualityL)
   { icon: Fan, label: 'Climate', active: true,  spin: true }, // 5. 温控界面
   { text: outdoorTemp.value.toString(), label: 'AirQualityR', action: 'outAir' }, // 6. 空气质量 (Temp R -> AirQualityR)
-  { icon: Phone, label: 'Service' }, // 7. 服务页面
-  { icon: ShieldAlert, label: 'Emergency' }, // 8. 应急呼叫
-  { icon: Info, label: 'SmartInfo', action: 'smartBuilding' }, // 9. 智能化介绍
+  { icon: UserRound, label: 'Service', action: 'service' }, // 7. 服务页面
+  { icon: Siren, label: 'Emergency', action: 'sos' }, // 8. 应急呼叫
+  { icon: Building2, label: 'SmartInfo', action: 'smartBuilding' }, // 9. 智能化介绍
 ])
 
 const handleDockClick = (item: any) => {
@@ -70,6 +73,10 @@ const handleDockClick = (item: any) => {
     outAirDrawer.value = true
   } else if (item.action === 'inAir') {
     inAirDrawer.value = true
+  } else if (item.action === 'service') {
+    serviceDrawer.value = true
+  } else if (item.action === 'sos') {
+    showSOSDialog.value = true
   }
 }
 
@@ -329,6 +336,53 @@ const handleDockClick = (item: any) => {
     >
       <InAirPage @close="inAirDrawer = false" />
     </el-drawer>
+
+    <!-- Service Drawer -->
+    <el-drawer
+      v-model="serviceDrawer"
+      :modal="false"
+      direction="btt"
+      :with-header="false"
+      size="100%"
+      class="!bg-black/10 !text-white backdrop-blur-xl"
+    >
+      <ServicePage @close="serviceDrawer = false" />
+    </el-drawer>
+
+    <!-- SOS Dialog -->
+    <div v-if="showSOSDialog" class="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div class="w-[500px] bg-white rounded-3xl p-8 relative overflow-hidden shadow-2xl animate-fade-in-up">
+         <!-- Subtle Pink Gradient -->
+         <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-red-100/50 to-transparent pointer-events-none"></div>
+
+         <div class="relative z-10 flex flex-col items-center text-center">
+            <h2 class="text-[#8B0000] text-2xl font-bold mb-6 tracking-wide">SOS紧急呼叫</h2>
+            
+            <p class="text-[#333333] text-lg leading-relaxed text-left w-full mb-6">
+               当您处于紧急情况下可点击立即呼叫，系统将发送当前位置的求助信息至安保值班室
+            </p>
+            
+            <p class="text-[#999999] text-base text-left w-full mb-10">
+               7*24小时安保电话：(0571) 28098488
+            </p>
+
+            <div class="flex gap-6 w-full">
+               <button 
+                 @click="showSOSDialog = false"
+                 class="flex-1 h-14 rounded-full border border-[#CCCCCC] text-[#333333] text-lg font-medium hover:bg-gray-50 active:scale-95 transition-all"
+               >
+                 取消
+               </button>
+               <button 
+                 @click="showSOSDialog = false"
+                 class="flex-1 h-14 rounded-full bg-[#FF5C4D] text-white text-lg font-medium shadow-lg hover:bg-[#FF4C3D] active:scale-95 transition-all"
+               >
+                 确认
+               </button>
+            </div>
+         </div>
+      </div>
+    </div>
   </VScaleScreen>
 </template>
 
@@ -339,6 +393,21 @@ const handleDockClick = (item: any) => {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.3s ease-out forwards;
 }
 
 :deep(.el-drawer) {

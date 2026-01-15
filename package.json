@@ -12,13 +12,16 @@
     "lint:fix": "eslint . --ext .ts,.vue --fix"
   },
   "dependencies": {
+    "@types/qs": "^6.14.0",
     "@vueuse/core": "^14.1.0",
+    "axios": "^1.13.2",
     "clsx": "^2.1.1",
     "echarts": "^6.0.0",
     "element-plus": "^2.13.1",
     "lucide-vue-next": "^0.511.0",
     "mqtt": "^5.3.5",
     "pinia": "^3.0.4",
+    "qs": "^6.14.1",
     "tailwind-merge": "^3.3.0",
     "v-scale-screen": "^2.3.0",
     "vue": "^3.4.15",

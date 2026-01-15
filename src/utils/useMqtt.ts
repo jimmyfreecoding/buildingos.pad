@@ -2,7 +2,7 @@ import MQTT from './mqtt'
 import { onUnmounted, ref } from 'vue'
 
 export default function useMqtt() {
-  const PublicMqtt = ref(MQTT)
+  const PublicMqtt = ref<MQTT | null>(null)
 
   const startMqtt = () => {
     //设置订阅地址
