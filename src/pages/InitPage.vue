@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import {  reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { AppConfig } from '../config'
 
 const router = useRouter()
+const version = __APP_VERSION__
 
 const form = reactive({
   padType: 'wallPad',
@@ -33,7 +33,8 @@ const handleSubmit = () => {
   localStorage.setItem('initData', JSON.stringify(initData))
   
   // Reload to root to apply config changes and trigger routing logic
-  window.location.href = '/'
+  // window.location.href = '/'
+  router.push('/')
 }
 </script>
 
@@ -74,6 +75,10 @@ const handleSubmit = () => {
           </el-button>
         </div>
       </el-form>
+      
+      <div class="mt-4 text-center text-gray-500 text-xs">
+        v{{ version }}
+      </div>
     </div>
   </div>
 </template>

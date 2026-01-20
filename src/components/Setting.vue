@@ -3,6 +3,8 @@ import { ref, watch, computed, reactive } from 'vue'
 import { Delete, MapPin } from 'lucide-vue-next'
 import { ElMessage } from 'element-plus'
 import { getSpaceData } from '@/api/space';
+import { useRouter } from 'vue-router'
+const router = useRouter()
 
 const props = defineProps<{
   modelValue: boolean
@@ -226,7 +228,8 @@ const handleKeypadClick = (key: string | number) => {
 
 const handleReset = () => {
   localStorage.removeItem('initData')
-  window.location.href = '/'
+  // window.location.href = '/'
+  router.push('/')
 }
 
 // Watch for dialog opening to reset state
