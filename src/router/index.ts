@@ -7,6 +7,7 @@ import MeetingControl from '@/pages/MeetingControl.vue'
 import RoomControl from '@/pages/RoomControl.vue'
 import TolitePad from '@/pages/TolitePad.vue'
 import DoorPad from '@/pages/DoorPad.vue'
+import Twins from '@/pages/Twins.vue'
 
 // 定义路由配置
 const routes: RouteRecordRaw[] = [
@@ -36,6 +37,8 @@ const routes: RouteRecordRaw[] = [
             return { name: 'tolitePad' }
           case 'doorPad':
             return { name: 'doorPad' }
+          case 'twins':
+            return { name: 'twins' }
           default:
             return { name: 'wallPad' }
         }
@@ -48,6 +51,11 @@ const routes: RouteRecordRaw[] = [
     path: '/init',
     name: 'init',
     component: InitPage,
+  },
+  {
+    path: '/twins',
+    name: 'twins',
+    component: Twins,
   },
   {
     path: '/wall-pad',

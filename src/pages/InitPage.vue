@@ -15,12 +15,14 @@ const padTypes = [
   { label: 'Tolite Pad (卫生间中控)', value: 'tolitePad' },
   { label: 'Room Control (独立房间中控)', value: 'roomControl' },
   { label: 'Meeting Control (会议室中控)', value: 'meetingControl' },
-  { label: 'Door Pad (独立房间门屏)', value: 'doorPad' }
+  { label: 'Door Pad (独立房间门屏)', value: 'doorPad' },
+  { label: 'Digital Twin Screen (数字孪生大屏)', value: 'twins' }
 ]
 
 const ratios = [
   { label: '16:9 (1920x1080)', value: '16:9' },
-  { label: '16:10 (1920x1200)', value: '16:10' }
+  { label: '16:10 (1920x1200)', value: '16:10' },
+  { label: '16:9 (4K - 3840x2160)', value: '4k' }
 ]
 
 const handleSubmit = () => {
