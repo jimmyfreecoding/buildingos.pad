@@ -22,9 +22,12 @@ const CODE_MESSAGE: Record<number, string> = {
   503: '服务不可用，服务器暂时过载或维护',
   504: '网关超时',
 }
-
+const baseURL =
+  (window as any).config?.VITE_APP_BASE_URL && (window as any).config?.VITE_APP_BASE_URL !== ''
+    ? (window as any).config.VITE_APP_BASE_URL
+    : import.meta.env.VITE_APP_BASE_URL
 const instance = axios.create({
-  baseURL: import.meta.env.VITE_APP_BASE_URL,
+  baseURL: baseURL,
   withCredentials: true,
   timeout,
   headers: {
