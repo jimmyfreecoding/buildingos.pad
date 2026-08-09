@@ -4,11 +4,16 @@ import { AppConfig } from './config'
 
 onMounted(() => {
   // Set root font size based on design width to ensure consistent scaling
-  // Base width 1920px -> 16px (Tailwind default)
-  const baseWidth = 1920
-  const baseFontSize = 20
-  const scale = AppConfig.design.width / baseWidth
-  document.documentElement.style.fontSize = `${baseFontSize * scale}px`
+  const designWidth = AppConfig.design.width
+  if (designWidth <= 768) {
+    // Small screens (e.g. 480x480 switch pad): use standard 16px base
+    document.documentElement.style.fontSize = '16px'
+  } else {
+    const baseWidth = 1920
+    const baseFontSize = 20
+    const scale = designWidth / baseWidth
+    document.documentElement.style.fontSize = `${baseFontSize * scale}px`
+  }
 })
 </script>
 

@@ -1,0 +1,7 @@
+{
+  "name": "默认墙面中控",
+  "description": "墙面中控默认界面",
+  "version": "1.0.0",
+  "author": "BuildingOS",
+  "padType": "wallPad"
+}

@@ -1,0 +1,70 @@
+.el-dialog{
+    background: #2E3A4D;
+    border-radius: 16px;
+    color:#fff;
+}
+.el-dialog.soc-dia{
+    background: linear-gradient(250.41deg, rgba(255, 216, 216, 0.95) 3.57%, rgba(255, 255, 255, 0.94) 26.1%, #FFFFFF 97.94%)!important;
+    border:2px solid;
+    border-image: linear-gradient(113.99deg, rgba(255, 255, 255, 0.8) 5.73%, rgba(255, 255, 255, 0.1) 42.8%, rgba(255, 255, 255, 0.1) 98.9%);
+    
+}
+.el-dialog.soc-dia .el-button--default{
+    border: 2px solid #607594;
+    background: #ffffff00;
+    color:#1E1E1E
+}
+
+.el-dialog.soc-dia .title{
+    color:rgba(90, 45, 40, 1)!important;
+    font-size: 24px;
+    margin-bottom:16px;
+    font-weight: 700;
+}
+.el-dialog.soc-dia .txt1{
+    color: rgba(30, 30, 30, 1);
+    font-size: 20px;
+    margin-bottom:20px;
+    text-align: left;
+    line-height: 30px;
+    padding:0 6px;
+}
+.el-dialog.soc-dia .txt2{
+    color: rgba(30, 30, 30, 1);
+    font-size: 20px;
+    margin-bottom:10px;
+    opacity: 0.5;
+    text-align: left;
+    padding:0 6px;
+}
+.el-dialog__body{
+    color:#fff;
+    font-size: 24px;
+    text-align: center;
+}
+.el-button{
+    width: 180px;
+    height: 60px;
+    border-radius: 98px;
+    font-size: 20px;
+}
+.el-button--primary{
+    background: #ED8733;
+    border:2px solid #ED8733;
+    color:#fff;
+}
+.el-button--default{
+    border: 2px solid #607594;
+    background: #ffffff00;
+    color:#fff
+}
+.el-button--danger{
+    background: rgba(255, 84, 67, 1);
+    border: 2px solid rgba(255, 84, 67, 1);
+    color:#fff
+}
+.el-button:focus,.el-button:hover{
+    background: #ED8733;
+    border:2px solid #ED8733;
+    color:#fff;
+}

@@ -1,0 +1,7 @@
+{
+  "name": "默认门屏",
+  "description": "独立房间门屏默认界面",
+  "version": "1.0.0",
+  "author": "BuildingOS",
+  "padType": "doorPad"
+}

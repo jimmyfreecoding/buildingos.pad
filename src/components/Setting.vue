@@ -29,6 +29,7 @@ const typeOptions = computed(() => {
       return [{ label: '卫生间', value: 'tolite' }]
     case 'roomControl':
     case 'doorPad':
+    case 'switchPad':
       return [{ label: '独立房间', value: 'room' }]
     case 'meetingControl':
       return [{ label: '会议室', value: 'meetingRoom' }]
@@ -53,7 +54,8 @@ const padTypeLabels: Record<string, string> = {
   tolitePad: 'Tolite Pad (卫生间中控)',
   roomControl: 'Room Control (独立房间中控)',
   meetingControl: 'Meeting Control (会议室中控)',
-  doorPad: 'Door Pad (独立房间门屏)'
+  doorPad: 'Door Pad (独立房间门屏)',
+  switchPad: 'Switch Pad (开关屏)'
 }
 
 const savedConfigStr = localStorage.getItem('initData')

@@ -1,0 +1,7 @@
+{
+  "name": "默认房间中控",
+  "description": "独立房间中控默认界面",
+  "version": "1.0.0",
+  "author": "BuildingOS",
+  "padType": "roomControl"
+}

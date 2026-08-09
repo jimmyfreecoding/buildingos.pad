@@ -1,125 +1,161 @@
 import mqtt from 'mqtt'
-class MQTT {
-    url: string
-    topic: string
-    client: any
-    password: string
-    username: string
-    constructor(topic: any) {
-        this.topic = topic
-        // this.url = "ws://192.168.0.83:1884"
-        // // this.url = "wss://wangchaobxiot.zeekrlife-test.com:443"
-        // this.username = 'zeekrmq'
-        // this.password = 'zeekr@2024!mqtt'
+import { ref, type Ref } from 'vue'
+import { MqttRouter, type MqttMessageHandler } from './mqttRouter'
+import { getMqttConfig, isMockMode } from '@/config/servers'
+import { topics, type SpaceContext } from './mqttTopics'
 
+const router = new MqttRouter()
+let client: mqtt.MqttClient | null = null
 
+const subscribedTopics = new Set<string>()
+const connectListeners: Array<() => void> = []
+const disconnectListeners: Array<() => void> = []
 
-        // this.url = "ws://10.205.66.8:1884"
-        // // this.url = "wss://ibmsiot.zeekrlife.com/"
-        // this.username = 'zeekr_iot_platform'
-        // this.password = 'jp2cJFJ1AEeOFUPYcWLF'
+export const isConnected: Ref<boolean> = ref(false)
+
+function resolveClientId(): string | undefined {
+  try {
+    const raw = localStorage.getItem('initData')
+    if (!raw) return undefined
+    const data = JSON.parse(raw)
+    const ctx: Partial<SpaceContext> = {
+      spaceCode: data.spaceId || data.code,
+      floorAreaCode: data.floorAreaCode,
+      floorCode: data.floorCode,
+      deviceCode: data.roomCode || data.roomId,
     }
-    //初始化mqtt
-    init() {
-        //add by jimmy 1015
-        let mqttstring="eyJ1cmwiOiJ3czovLzEwLjIwNS42Ni44OjE4ODQiLCJ1c2VybmFtZSI6InplZWtyX2lvdF9wbGF0Zm9ybSIsInBhc3N3b3JkIjoianAyY0pGSjFBRWVPRlVQWWNXTEYifQ=="
-        if(localStorage.getItem("data") && JSON.parse(localStorage.getItem("data")).spaceObject){
-            console.log("mqtt init data",JSON.parse(localStorage.getItem("data")).spaceObject)
-            if(JSON.parse(localStorage.getItem("data")).spaceObject.mqttstring){
-                mqttstring = JSON.parse(localStorage.getItem("data")).spaceObject.mqttstring
-            }
-            // let spaceObject = JSON.parse(localStorage.getItem("data")).spaceObject
-        }else{
-            // let sp = {
-            //     url:'ws://10.138.43.109:1883',
-            //     username:'zeekr',
-            //     password:'zeekr'
-            // }
-            // console.info(btoa(JSON.stringify(sp)))
-            console.log("mqtt init data ",0)
-        }
-        // this.url = JSON.parse(atob(mqttstring)).url
-        // this.username = JSON.parse(atob(mqttstring)).username
-        // this.password = JSON.parse(atob(mqttstring)).password
-
-
-        this.url = "wss://z650480e.ala.cn-hangzhou.emqxsl.cn:8084/mqtt"
-        this.username = "buildingos"
-        this.password = "Dvdv1205"
-
-
-
-        console.log(atob(mqttstring))
-        //end by jimmy
-        let data = localStorage.getItem("data");
-            if(data){//绑定了才进行按照固定clientID的连接 add by jimmy
-                this.client = mqtt.connect(this.url, {
-                    // clientId:`mroom_${JSON.parse(data).space}_${JSON.parse(data).floorarea}_${JSON.parse(data).floor}_${JSON.parse(data).code}`,
-                    // clean: false, // 保留会话
-                    clean:true,
-                    connectTimeout: 4000, // 超时时间
-                    reconnectPeriod: 1000, // 重连时间间隔
-                    username: this.username,
-                    password: this.password,
-                }
-    )
-            }else{
-                this.client = mqtt.connect(this.url,  {
-                    clean: true, // 保留会话
-                    connectTimeout: 4000, // 超时时间
-                    reconnectPeriod: 1000, // 重连时间间隔
-                    username: this.username,
-                    password: this.password,
-                })
-            }
-            
-            this.client.on('error', (error: any) => {
-                console.log(error)
-            })
-            this.client.on('reconnect', () => {
-                console.log('正在重连:')
-            })
-
-        
-    }
-    //取消订阅
-    unsubscribe(topic: string) {
-        this.client.unsubscribe(topic, (error: any) => {
-            if (!error) {
-                console.log(topic, '取消订阅成功')
-            } else {
-                console.log(topic, '取消订阅失败')
-            }
-        })
-    }
-    //连接
-    link() {
-        this.client.on('connect', () => {
-            console.log('已经连接成功')
-            console.log(this.client.options.clientId)
-            // 订阅主题，这里可以订阅多个主题
-            // client.subscribe([topic, topic1], () => {
-            //   console.log(`订阅了主题 ${[topic, topic1].join('和')}`)
-            // })
-        })
-    }
-    //收到的消息
-    subscribe(val: string, callback: any) {
-        console.log(`订阅主题${val}`)
-        this.client.subscribe(val)
-        this.client.on('message', callback)
-    }
-    //发布的消息
-    publish(topic: string, message: string) {
-        // console.info(topic)
-        // console.info(message)
-        // console.log(this.client)
-        console.log(`发布主题${topic}`)
-        this.client.publish(topic, message)
-    }
-    //结束链接
-    over() {
-        this.client.end()
-    }
+    if (!ctx.spaceCode || !ctx.floorAreaCode || !ctx.floorCode) return undefined
+    return `mroom_${ctx.spaceCode}_${ctx.floorAreaCode}_${ctx.floorCode}_${ctx.deviceCode ?? 'unbound'}`
+  } catch {
+    return undefined
+  }
 }
-export default MQTT
+
+function doConnect(): void {
+  const cfg = getMqttConfig()
+  if (!cfg.url) {
+    console.warn('[MQTT] No broker URL configured — running in mock mode')
+    return
+  }
+
+  const clientId = resolveClientId()
+
+  client = mqtt.connect(cfg.url, {
+    clean: true,
+    connectTimeout: 4000,
+    reconnectPeriod: 1000,
+    username: cfg.username || undefined,
+    password: cfg.password || undefined,
+  })
+
+  client.on('error', (err: Error) => {
+    console.error('[MQTT] Connection error:', err.message)
+  })
+
+  client.on('connect', () => {
+    console.log('[MQTT] Connected, clientId:', client!.options.clientId)
+    isConnected.value = true
+
+    if (subscribedTopics.size > 0) {
+      const topicList = Array.from(subscribedTopics)
+      client!.subscribe(topicList, (err) => {
+        if (err) console.error('[MQTT] Re-subscribe error:', err)
+      })
+    }
+
+    connectListeners.forEach((fn) => fn())
+  })
+
+  client.on('close', () => {
+    console.log('[MQTT] Disconnected')
+    isConnected.value = false
+    disconnectListeners.forEach((fn) => fn())
+  })
+
+  client.on('offline', () => {
+    console.log('[MQTT] Offline')
+    isConnected.value = false
+  })
+
+  client.on('message', (topic: string, payload: Buffer) => {
+    router.dispatch(topic, payload)
+  })
+}
+
+export function connectMqtt(): void {
+  if (client || isMockMode()) return
+  doConnect()
+}
+
+export function disconnectMqtt(): void {
+  if (client) {
+    // Set client to null first so the close handler doesn't auto-reconnect
+    const c = client
+    client = null
+    c.end(true)
+    subscribedTopics.clear()
+    router.clear()
+    isConnected.value = false
+  }
+}
+
+export function subscribe(topic: string): void {
+  if (isMockMode()) return
+  if (subscribedTopics.has(topic)) return
+  subscribedTopics.add(topic)
+
+  if (client && isConnected.value) {
+    client.subscribe(topic, (err) => {
+      if (err) console.error(`[MQTT] Subscribe error for ${topic}:`, err)
+    })
+  }
+}
+
+export function unsubscribe(topic: string): void {
+  if (!subscribedTopics.has(topic)) return
+  subscribedTopics.delete(topic)
+
+  if (client && isConnected.value) {
+    client.unsubscribe(topic, undefined, (err) => {
+      if (err) console.error(`[MQTT] Unsubscribe error for ${topic}:`, err)
+    })
+  }
+}
+
+export function publish(topic: string, message: string | object): void {
+  if (isMockMode() || !client) {
+    console.log('[MQTT Mock] publish:', topic, message)
+    return
+  }
+  const payload = typeof message === 'string' ? message : JSON.stringify(message)
+  client.publish(topic, payload, { qos: 0 }, (err) => {
+    if (err) console.error(`[MQTT] Publish error for ${topic}:`, err)
+  })
+}
+
+export function onMessage(topic: string, handler: MqttMessageHandler): () => void {
+  return router.on(topic, handler)
+}
+
+export function offMessage(topic: string, handler: MqttMessageHandler): void {
+  router.off(topic, handler)
+}
+
+export function onConnect(fn: () => void): () => void {
+  connectListeners.push(fn)
+  return () => {
+    const idx = connectListeners.indexOf(fn)
+    if (idx !== -1) connectListeners.splice(idx, 1)
+  }
+}
+
+export function onDisconnect(fn: () => void): () => void {
+  disconnectListeners.push(fn)
+  return () => {
+    const idx = disconnectListeners.indexOf(fn)
+    if (idx !== -1) disconnectListeners.splice(idx, 1)
+  }
+}
+
+export { topics }
+export type { SpaceContext }

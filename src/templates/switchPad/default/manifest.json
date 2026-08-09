@@ -1,0 +1,7 @@
+{
+  "name": "默认开关屏",
+  "description": "开关屏默认界面",
+  "version": "1.0.0",
+  "author": "BuildingOS",
+  "padType": "switchPad"
+}

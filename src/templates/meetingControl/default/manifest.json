@@ -1,0 +1,7 @@
+{
+  "name": "默认会议室中控",
+  "description": "会议室中控默认界面",
+  "version": "1.0.0",
+  "author": "BuildingOS",
+  "padType": "meetingControl"
+}

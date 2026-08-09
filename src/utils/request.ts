@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { stringify } from 'qs'
 import { ElMessage } from 'element-plus'
+import { getServerConfig } from '@/config/servers'
 
 const contentType = 'application/json;charset=UTF-8'
 const timeout = 60000
@@ -22,23 +23,20 @@ const CODE_MESSAGE: Record<number, string> = {
   503: '服务不可用，服务器暂时过载或维护',
   504: '网关超时',
 }
-const baseURL =
-  (window as any).config?.VITE_APP_BASE_URL && (window as any).config?.VITE_APP_BASE_URL !== ''
-    ? (window as any).config.VITE_APP_BASE_URL
-    : import.meta.env.VITE_APP_BASE_URL
+
 const instance = axios.create({
-  baseURL: baseURL,
-  withCredentials: true,
   timeout,
   headers: {
     'Content-Type': contentType,
   },
 })
 
-// Request Interceptor
+// Request Interceptor — resolve baseURL lazily per request
 instance.interceptors.request.use(
   (config: any) => {
-    // Transform data if content type is x-www-form-urlencoded
+    if (!config.baseURL) {
+      config.baseURL = getServerConfig().apiBaseUrl
+    }
     if (config.data && config.headers['Content-Type'] === 'application/x-www-form-urlencoded;charset=UTF-8') {
       config.data = stringify(config.data)
     }
@@ -53,24 +51,22 @@ instance.interceptors.request.use(
 instance.interceptors.response.use(
   (response) => {
     const { data } = response
-    // Directly return data for open APIs as requested
     return data
   },
   (error) => {
     const { response } = error
     console.error('Request Error:', error)
-    
+
     if (response && response.status) {
       const errorText = CODE_MESSAGE[response.status] || response.statusText
       const { status, url } = response
-      
+
       ElMessage.error({
         message: `请求错误 ${status}: ${url}`,
         grouping: true,
         duration: 5000
       })
-      
-      // If needed, we can also show the detailed error text from CODE_MESSAGE
+
       if (CODE_MESSAGE[status]) {
          ElMessage.error({
              message: CODE_MESSAGE[status],

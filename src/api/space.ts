@@ -1,9 +1,10 @@
 import request from '@/utils/request'
+import type { Space } from '@/types/space'
 
-export function getSpaceData(data: any) {
+export function getSpaceData(data: Record<string, unknown> = {}): Promise<Space[]> {
   return request({
-    url: '/pad/getSpaceData',
+    url: '/iot/setting/get/structure',
     method: 'post',
-    data
+    data,
   })
 }

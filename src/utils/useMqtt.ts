@@ -1,38 +1,68 @@
-import MQTT from './mqtt'
-import { onUnmounted, ref } from 'vue'
+import { onScopeDispose } from 'vue'
+import {
+  isConnected,
+  subscribe as mqSubscribe,
+  unsubscribe as mqUnsubscribe,
+  publish as mqPublish,
+  onMessage as mqOnMessage,
+  offMessage as mqOffMessage,
+  connectMqtt,
+} from './mqtt'
+import type { MqttMessageHandler } from './mqttRouter'
 
-export default function useMqtt() {
-  const PublicMqtt = ref<MQTT | null>(null)
+export function useMqtt() {
+  const handlerPairs: Array<{ topic: string; handler: MqttMessageHandler }> = []
+  const subscribedTopics = new Set<string>()
 
-  const startMqtt = () => {
-    //设置订阅地址
-    PublicMqtt.value = new MQTT('')
-    //初始化mqtt
-    PublicMqtt.value.init()
-    //链接mqtt
-    PublicMqtt.value.link()
+  connectMqtt()
+
+  const subscribe = (topic: string): void => {
+    subscribedTopics.add(topic)
+    mqSubscribe(topic)
   }
-  const unsubscribe = (val: string) => {
-    PublicMqtt.value?.unsubscribe(val)
+
+  const unsubscribe = (topic: string): void => {
+    subscribedTopics.delete(topic)
+    mqUnsubscribe(topic)
   }
-  const subscribe = (val: string, callback: any) => {
-    PublicMqtt.value?.subscribe(val, callback)
-  }
-  const publish = (topic: string, message: string) => {
-    PublicMqtt.value?.publish(topic, message)
-  }
-  onUnmounted(() => {
-    //页面销毁结束订阅
-    if (PublicMqtt.value) {
-      //PublicMqtt.value.unsubscribes()
-      //PublicMqtt.value.over()
+
+  const onMessage = (topic: string, handler: MqttMessageHandler): (() => void) => {
+    mqOnMessage(topic, handler)
+    const pair = { topic, handler }
+    handlerPairs.push(pair)
+
+    return () => {
+      mqOffMessage(topic, handler)
+      const idx = handlerPairs.indexOf(pair)
+      if (idx !== -1) handlerPairs.splice(idx, 1)
     }
+  }
+
+  const offMessage = (topic: string, handler: MqttMessageHandler) => {
+    mqOffMessage(topic, handler)
+    const idx = handlerPairs.findIndex((p) => p.topic === topic && p.handler === handler)
+    if (idx !== -1) handlerPairs.splice(idx, 1)
+  }
+
+  onScopeDispose(() => {
+    for (const { topic, handler } of handlerPairs) {
+      mqOffMessage(topic, handler)
+    }
+    handlerPairs.length = 0
+
+    for (const topic of subscribedTopics) {
+      mqUnsubscribe(topic)
+    }
+    subscribedTopics.clear()
   })
 
   return {
-    startMqtt,
-    publish,
+    isConnected,
     subscribe,
     unsubscribe,
+    publish: mqPublish,
+    onMessage,
+    offMessage,
+    connect: connectMqtt,
   }
 }

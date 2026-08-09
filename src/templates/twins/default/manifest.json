@@ -1,0 +1,7 @@
+{
+  "name": "默认数字孪生大屏",
+  "description": "数字孪生大屏默认界面",
+  "version": "1.0.0",
+  "author": "BuildingOS",
+  "padType": "twins"
+}

@@ -15,15 +15,15 @@ const getInitConfig = () => {
 
 const initData = getInitConfig()
 const is16_10 = initData?.ratio === '16:10'
+const is1_1 = initData?.ratio === '1:1'
 
 export const AppConfig = {
   // Base Design Resolution
-  // Change to { width: 1920, height: 1200 } for 16:10 native support
   design: {
-    width: 1920,
-    height: is16_10 ? 1200 : 1080, // Dynamic height based on ratio
+    width: is1_1 ? 480 : 1920,
+    height: is1_1 ? 480 : (is16_10 ? 1200 : 1080),
   },
-  
+
   // App Title
   title: 'GEEQEE Cockpit'
 }
