@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 
+defineOptions({ inheritAttrs: false })
+
 const props = defineProps<{
   lights: any[]
   lightobj: any[]
@@ -12,7 +14,7 @@ const props = defineProps<{
   obj: any
 }>()
 
-const emit = defineEmits(['syncLightStatus', 'syncLight', 'syncAllLight', 'syncAcPower', 'syncAcTemp', 'syncAcSpeed', 'syncBlind'])
+const emit = defineEmits(['syncLightStatus', 'syncLight', 'syncAllLight', 'syncAcPower', 'syncAcTemp', 'syncAcMode', 'syncAcSpeed', 'syncBlind'])
 
 // ====== Local state ======
 const lightallbutton = computed(() => {
@@ -27,6 +29,7 @@ const acbutton = ref(0)
 const fanActive = ref(0)
 const dialogLight = ref(false)
 const dialogLightAll = ref(false)
+const dialogBlind = ref(false)
 const dialogAcAll = ref(false)
 const dialogFankui = ref(false)
 const dialogAirError = ref(false)
@@ -35,9 +38,11 @@ const acloadingFlag = ref(false)
 const dialogTxt = ref('')
 const currtlight = ref<any>({})
 const currtstatus = ref('off')
+const currtBlindAction = ref('')
 const tempStatus = ref('off')
 const tempVal = ref(24)
 const fanVal = ref('15')
+const acModeEdit = ref('cool')
 
 // AC display derived from props
 const acDisplay = computed(() => {
@@ -62,6 +67,10 @@ watch(acDisplay, (val) => {
     tempStatus.value = val.power ? 'on' : 'off'
     tempVal.value = val.temp
     fanActive.value = val.fanIdx
+    if (props.acobj?.[0]?.mode) {
+      const modeMap: Record<string, string> = { '制冷': 'cool', '制热': 'heat', '自动': 'auto', '吹风': 'vent' }
+      acModeEdit.value = modeMap[props.acobj[0].mode] || props.acobj[0].mode || 'cool'
+    }
   }
 }, { immediate: true })
 
@@ -72,13 +81,15 @@ const blind2Show = computed(() => props.blind2?.length > 0)
 
 const errorList = computed(() => {
   if (!props.acobj?.length) return []
-  return props.acobj.filter((x: any) => x?.status?.online == 0 || x?.status?.alarmValue != 0)
+  const ac = props.acobj[0]
+  if (!ac?.devices) return []
+  return ac.devices.filter((d: any) => d.status?.online == 0 || d.status?.alarmValue != 0)
 })
 
 // ====== Handlers ======
 const showLightTitle = (name: string) => {
   if (!name) return ''
-  return name.length > 6 ? name.substring(0, 6) + '..' : name
+  return name.length > 6 ? '..' + name.substring(name.length - 6) : name
 }
 
 const lightOp = (light: any) => {
@@ -119,27 +130,39 @@ const acAllOP = (idx: number) => {
 
 const airconditionAll = () => {
   const on = tempStatus.value === 'off'
+  console.log('[ZhaomingPanel] airconditionAll: on=', on)
+  emit('syncAcPower', on)
   acbutton.value = on ? 1 : 0
   tempStatus.value = on ? 'on' : 'off'
-  loadingFlag.value = true
-  emit('syncAcPower', on)
-  setTimeout(() => { loadingFlag.value = false; dialogAcAll.value = false }, 3000)
+  acloadingFlag.value = true
+  setTimeout(() => { acloadingFlag.value = false; dialogAcAll.value = false }, 3000)
 }
+
+const blindActionLabel: Record<string, string> = { up: '打开', down: '关闭', pause: '暂停' }
 
 const handleBlind = (action: string) => {
-  emit('syncBlind', action)
+  currtBlindAction.value = action
+  dialogTxt.value = '确认' + blindActionLabel[action] + '窗帘'
+  dialogBlind.value = true
 }
 
-const handleTempChange = (val: number) => {
-  tempVal.value = val
-  emit('syncAcTemp', val)
+const setBlind = () => {
+  console.log('[ZhaomingPanel] setBlind:', currtBlindAction.value)
+  emit('syncBlind', currtBlindAction.value)
+  loadingFlag.value = true
+  setTimeout(() => { loadingFlag.value = false; dialogBlind.value = false }, 2000)
 }
 
 const switchWindSpeed = (idx: number) => {
   fanActive.value = idx
   const speeds = ['15', '45', '75']
   fanVal.value = speeds[idx]
-  emit('syncAcSpeed', speeds[idx])
+}
+
+const switchAcMode = (mode: string) => {
+  acModeEdit.value = mode
+  const modeIdx: Record<string, number> = { cool: 0, heat: 1, auto: 2, vent: 3 }
+  const idx = modeIdx[mode] ?? 0
 }
 
 const phoneMap: Record<string, string> = {
@@ -258,41 +281,6 @@ const chuanglian3 = new URL('../assets/images/chuanglian3.png', import.meta.url)
               <span class="opa85">风量大小：</span>{{ acbutton === 0 ? '关闭' : acDisplay?.speed }}
             </div>
           </div>
-
-          <!-- 温度滑块 + 风力 -->
-          <div class="spec" v-if="airControlDisplay && tempStatus === 'on'">
-            <div class="air-box flex-row align-center justify-between temp-control">
-              <span class="floor">17℃</span>
-              <el-slider
-                v-model="tempVal"
-                :min="17"
-                :max="26"
-                :step="1"
-                :format-tooltip="(val: number) => `${val}℃`"
-                show-tooltip
-                show-stops
-                tooltip-class="temp-tip"
-                @change="handleTempChange"
-              />
-              <span class="celling">26℃</span>
-            </div>
-            <div class="flex-row justify-between align-center">
-              <div class="title">风力大小</div>
-            </div>
-            <div>
-              <div class="tabs-nav mini flex-row">
-                <div class="tabs-item" :class="{ active: fanActive === 0 }" @click="switchWindSpeed(0)">
-                  <div style="position:relative;z-index:2">弱风</div>
-                </div>
-                <div class="tabs-item" :class="{ active: fanActive === 1 }" @click="switchWindSpeed(1)">
-                  <div style="position:relative;z-index:2">中风</div>
-                </div>
-                <div class="tabs-item" :class="{ active: fanActive === 2 }" @click="switchWindSpeed(2)">
-                  <div style="position:relative;z-index:2">强风</div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -320,13 +308,24 @@ const chuanglian3 = new URL('../assets/images/chuanglian3.png', import.meta.url)
     </template>
   </el-dialog>
 
+  <!-- ====== 窗帘确认弹窗 ====== -->
+  <el-dialog v-model="dialogBlind" append-to-body width="500" top="40vh" :show-close="false">
+    <span>{{ dialogTxt }}</span>
+    <template #footer>
+      <div class="dialog-footer flex-row justify-around">
+        <el-button type="default" @click="dialogBlind = false" :loading="loadingFlag">取消</el-button>
+        <el-button type="primary" @click="setBlind" :loading="loadingFlag">确认</el-button>
+      </div>
+    </template>
+  </el-dialog>
+
   <!-- ====== 空调全控确认弹窗 ====== -->
   <el-dialog v-model="dialogAcAll" append-to-body width="500" top="40vh" :show-close="false">
     <span>{{ dialogTxt }}</span>
     <template #footer>
       <div class="dialog-footer flex-row justify-around">
-        <el-button type="default" @click="dialogAcAll = false" :loading="loadingFlag">取消</el-button>
-        <el-button type="primary" @click="airconditionAll" :loading="loadingFlag">确认</el-button>
+        <el-button type="default" @click="dialogAcAll = false" :loading="acloadingFlag">取消</el-button>
+        <el-button type="primary" @click="airconditionAll" :loading="acloadingFlag">确认</el-button>
       </div>
     </template>
   </el-dialog>

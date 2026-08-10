@@ -94,7 +94,11 @@ export const useDeviceStore = defineStore('device', () => {
     if (!acMap.has(key)) {
       acMap.set(key, { ...DEFAULT_AC })
     }
-    return computed(() => acMap.get(key)!)
+    return computed(() => {
+      const s = acMap.get(key)!
+      if (!s.devices) s.devices = []
+      return s
+    })
   }
 
   function getAirSensor(key: string) {
@@ -115,7 +119,11 @@ export const useDeviceStore = defineStore('device', () => {
     if (!blindMap.has(key)) {
       blindMap.set(key, { ...DEFAULT_BLIND })
     }
-    return computed(() => blindMap.get(key)!)
+    return computed(() => {
+      const s = blindMap.get(key)!
+      if (!s.devices) s.devices = []
+      return s
+    })
   }
 
   function getFreshAir(key: string) {

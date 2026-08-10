@@ -11,7 +11,7 @@ const {
   wcmanStatusObj, wcwomanStatusObj, wcmanOtherFloorObj, wcmanOtherFloorObj2,
   wcwomanOtherFloorObj, ceowcStatusObj, ceowcStatusObj2,
   baojie, mapData, otherFloor, otherFloor2, airsensorMap,
-  toggleLight, setAllLights, blindMove, acTogglePower, acSetTempAbsolute, acSetSpeedStr,
+  toggleLight, setAllLights, blindMove, acTogglePower, acSetTempAbsolute, acSetSpeedStr, acSetMode,
 } = useZeekrData()
 
 const router = useRouter()
@@ -125,10 +125,11 @@ const serviceGaojingFun = () => { sosConfirm() }
 const syncLight = (light: any) => { currentLight.value = light; toggleLight(light) }
 const syncAllLight = (on: boolean) => { setAllLights(on) }
 const syncLightStatus = (light: any) => { currentLightStatus.value = light.status === 1 }
-const syncAcPower = (on: boolean) => { acTogglePower() }
-const syncAcTemp = (val: number) => { acSetTempAbsolute(val) }
-const syncAcSpeed = (speed: string) => { acSetSpeedStr(speed) }
-const syncBlind = (dir: string) => { blindMove((dir === 'pause' ? 'stop' : dir) as 'up' | 'down' | 'stop') }
+const syncAcPower = (on: boolean) => { console.log('[index] syncAcPower:', on); acTogglePower() }
+const syncAcTemp = (val: number) => { console.log('[index] syncAcTemp:', val); acSetTempAbsolute(val) }
+const syncAcSpeed = (speed: string) => { console.log('[index] syncAcSpeed:', speed); acSetSpeedStr(speed) }
+const syncAcMode = (mode: string) => { console.log('[index] syncAcMode:', mode); acSetMode(mode) }
+const syncBlind = (dir: string) => { blindMove(dir as 'up' | 'down' | 'pause') }
 const clickEven = () => {}
 
 // LeftNav dynamic width matching original
@@ -338,7 +339,7 @@ const map1 = new URL('./assets/images/map1.png', import.meta.url).href
                 :lights="lights" :lightobj="lightobj" :acobj="acobj" :inside="inside"
                 :blind="blind" :blind2="blind2" :air2="air2" :obj="obj"
                 @syncLight="syncLight" @syncAllLight="syncAllLight" @syncLightStatus="syncLightStatus"
-                @syncAcPower="syncAcPower" @syncAcTemp="syncAcTemp" @syncAcSpeed="syncAcSpeed" @syncBlind="syncBlind"
+                @syncAcPower="syncAcPower" @syncAcTemp="syncAcTemp" @syncAcMode="syncAcMode" @syncAcSpeed="syncAcSpeed" @syncBlind="syncBlind"
               ></ZhaomingPanel>
               <RoomUsePanel v-if="tabIndex === 3 && obj.floor !== '54F'" :roomoSensorObj="roomoSensorObj" :meetingRooms="meetingRooms" :wcmanStatusObj="wcmanStatusObj" :wcwomanStatusObj="wcwomanStatusObj"></RoomUsePanel>
               <IntelligentPanel v-if="obj.floor === '54F' ? tabIndex === 3 : tabIndex === 4"></IntelligentPanel>

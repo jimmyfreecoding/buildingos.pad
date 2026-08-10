@@ -20,7 +20,14 @@ export const DEFAULT_LIGHT: LightState = {
 export type AcMode = 'cool' | 'heat' | 'auto' | 'vent'
 export type FanSpeed = 'low' | 'mid' | 'high'
 
+export interface AcDevice {
+  id: string
+  name: string
+  status: Record<string, any>
+}
+
 export interface AcState {
+  devices: AcDevice[]
   power: boolean
   temp: number
   mode: AcMode
@@ -29,6 +36,7 @@ export interface AcState {
 }
 
 export const DEFAULT_AC: AcState = {
+  devices: [],
   power: false,
   temp: 24,
   mode: 'cool',
@@ -60,12 +68,19 @@ export interface WcSensorData {
 }
 
 // --- Blinds / Curtains ---
+export interface BlindDevice {
+  id: string
+  name: string
+  status: Record<string, any>
+}
+
 export interface BlindState {
+  devices: BlindDevice[]
   position: number // 0-100
-  moving?: 'up' | 'down' | 'stop'
 }
 
 export const DEFAULT_BLIND: BlindState = {
+  devices: [],
   position: 50,
 }
 

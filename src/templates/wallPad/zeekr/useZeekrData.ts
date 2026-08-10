@@ -27,7 +27,7 @@ export function useZeekrData() {
   const { lights: mqttLights, toggleLight: mqttToggleLight, setAll: mqttSetAll } = useLightMqtt()
   const { sensors: wcSensors } = useWcSensorMqtt()
   const { blind: mqttBlind, move: mqttBlindMove } = useBlindMqtt()
-  const { ac: mqttAc, togglePower, setTemp, setMode, setSpeed } = useAcMqtt()
+  const { ac: mqttAc, togglePower, setTemp, setMode: mqttSetMode, setSpeed } = useAcMqtt()
 
   // --- Outdoor weather (MQTT updates mock ref in place) ---
   subscribe('/wallpad/outside')
@@ -71,7 +71,7 @@ export function useZeekrData() {
 
   // --- AC ---
   const acobj = computed(() => {
-    if (isConnected.value && mqttAc.value) {
+    if (isConnected.value && mqttAc.value?.devices?.length) {
       return [{
         name: '空调',
         power: mqttAc.value.power,
@@ -79,6 +79,7 @@ export function useZeekrData() {
         mode: mqttAc.value.mode,
         speed: mqttAc.value.speed,
         currentTemp: mqttAc.value.currentTemp ?? mqttAc.value.temp,
+        devices: mqttAc.value.devices,
       }]
     }
     return mock.acobj.value
@@ -86,7 +87,7 @@ export function useZeekrData() {
 
   // --- Blinds ---
   const blind = computed(() => {
-    if (isConnected.value && mqttBlind.value?.position !== undefined) {
+    if (isConnected.value && mqttBlind.value?.devices?.length) {
       return [{ position: mqttBlind.value.position }]
     }
     return mock.blind.value
@@ -146,7 +147,8 @@ export function useZeekrData() {
   }
 
   // --- Blind action ---
-  const blindMove = (direction: 'up' | 'down' | 'stop') => {
+  const blindMove = (direction: 'up' | 'down' | 'pause') => {
+    console.log('[useZeekrData] blindMove:', direction, 'isConnected:', isConnected.value)
     if (isConnected.value) {
       mqttBlindMove(direction)
     }
@@ -164,6 +166,12 @@ export function useZeekrData() {
     if (isConnected.value) {
       const map: Record<string, string> = { '15': 'low', '45': 'mid', '75': 'high' }
       setSpeed((map[speedStr] || 'low') as any)
+    }
+  }
+
+  const acSetModeStr = (mode: string) => {
+    if (isConnected.value) {
+      mqttSetMode(mode as any)
     }
   }
 
@@ -210,6 +218,6 @@ export function useZeekrData() {
     acSetTempAbsolute,
     acSetSpeed: setSpeed,
     acSetSpeedStr,
-    acSetMode: setMode,
+    acSetMode: acSetModeStr,
   }
 }

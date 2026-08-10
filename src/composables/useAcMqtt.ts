@@ -3,7 +3,7 @@ import { useDeviceStore } from '@/stores/device'
 import { useSpaceStore } from '@/stores/space'
 import { useMqtt } from '@/utils/useMqtt'
 import { topics } from '@/utils/mqtt'
-import type { AcState, AcMode, FanSpeed } from '@/types/device'
+import type { AcDevice, AcState, AcMode, FanSpeed } from '@/types/device'
 
 function parseDeviceStatus(raw: any): Record<string, any> {
   if (!raw) return {}
@@ -13,9 +13,47 @@ function parseDeviceStatus(raw: any): Record<string, any> {
   return raw
 }
 
-// Map original numeric mode/fan to new string enums
 const MODE_MAP: Record<number, AcMode> = { 1: 'auto', 2: 'vent', 3: 'cool', 4: 'heat', 5: 'vent' as AcMode }
 const FAN_MAP: Record<number, FanSpeed> = { 15: 'low', 45: 'mid', 75: 'high' }
+
+function isDeviceOn(d: AcDevice): boolean {
+  return d.status?.status === 'on' || d.status?.status === true || d.status?.status === 1
+}
+
+function aggregate(devices: AcDevice[]): Partial<AcState> {
+  if (devices.length === 0) return {}
+  const online = devices.filter((d) => {
+    const o = d.status?.online
+    return o !== 0 && o !== '0' && o !== false && o !== undefined
+  })
+  const pool = online.length > 0 ? online : devices
+
+  const power = pool.some(isDeviceOn)
+
+  const temps = pool
+    .map((d) => Number(d.status?.pretemperature ?? d.status?.temperature))
+    .filter((t) => !isNaN(t))
+  const temp = temps.length > 0 ? Math.round(temps.reduce((a, b) => a + b, 0) / temps.length) : 24
+
+  const currentTemps = pool
+    .map((d) => Number(d.status?.temperature))
+    .filter((t) => !isNaN(t))
+  const currentTemp = currentTemps.length > 0
+    ? Math.round(currentTemps.reduce((a, b) => a + b, 0) / currentTemps.length)
+    : undefined
+
+  const modes = pool.map((d) => MODE_MAP[Number(d.status?.mode)]).filter(Boolean) as AcMode[]
+  const modeCounts: Record<string, number> = {}
+  modes.forEach((m) => { modeCounts[m] = (modeCounts[m] || 0) + 1 })
+  const mode = (Object.entries(modeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] as AcMode) || 'cool'
+
+  const speeds = pool.map((d) => FAN_MAP[Number(d.status?.fan)]).filter(Boolean) as FanSpeed[]
+  const speedCounts: Record<string, number> = {}
+  speeds.forEach((s) => { speedCounts[s] = (speedCounts[s] || 0) + 1 })
+  const speed = (Object.entries(speedCounts).sort((a, b) => b[1] - a[1])[0]?.[0] as FanSpeed) || 'mid'
+
+  return { power, temp, mode, speed, currentTemp }
+}
 
 export function useAcMqtt() {
   const spaceStore = useSpaceStore()
@@ -27,121 +65,119 @@ export function useAcMqtt() {
   const ac = computed(() => deviceStore.getAc(key.value).value)
 
   let unsubs: Array<() => void> = []
+  let configTimer: ReturnType<typeof setInterval> | null = null
+
+  const requestConfig = () => {
+    if (!ctx.value) return
+    if (ac.value.devices.length > 0) {
+      if (configTimer) { clearInterval(configTimer); configTimer = null }
+      return
+    }
+    mqtt.publish(topics.deviceConfigGet(), {
+      spaceCode: ctx.value.spaceCode,
+      floorAreaCode: ctx.value.floorAreaCode,
+      floorCode: ctx.value.floorCode,
+      areaCode: ctx.value.deviceCode,
+    })
+  }
 
   const setup = () => {
-    console.log('[AcMqtt] setup() called, ctx:', ctx.value, 'key:', key.value)
-    if (!ctx.value || !key.value) {
-      console.log('[AcMqtt] setup() ABORTED: no ctx or key')
-      return
-    }
+    if (!ctx.value || !key.value) return
     deviceStore.acquire(key.value)
-    if (!deviceStore.isAcquired(key.value)) {
-      console.log('[AcMqtt] setup() ABORTED: isAcquired returned false')
-      return
-    }
-    if (unsubs.length > 0) {
-      console.log('[AcMqtt] setup() SKIPPED: already set up')
-      return
-    }
+    if (!deviceStore.isAcquired(key.value)) return
+    if (unsubs.length > 0) return
 
     const c = ctx.value
-    console.log('[AcMqtt] Setting up with ctx:', JSON.stringify(c))
 
-    // 1) Subscribe to real-time AC status
+    // 1) Subscribe to device config response
+    const configResponseTopic = topics.deviceConfigResponse(c)
+    mqtt.subscribe(configResponseTopic)
+    unsubs.push(() => mqtt.unsubscribe(configResponseTopic))
+
+    unsubs.push(mqtt.onMessage(configResponseTopic, (payload: unknown) => {
+      const raw = payload as any
+      if (raw?.airconditioning && Array.isArray(raw.airconditioning)) {
+        const devices: AcDevice[] = raw.airconditioning.map((d: any) => ({
+          id: d.code || d.name,
+          name: d.name,
+          status: parseDeviceStatus(d.status),
+        }))
+        deviceStore.applyAcState(key.value, { devices, ...aggregate(devices) })
+        if (configTimer) { clearInterval(configTimer); configTimer = null }
+      }
+    }))
+
+    // 2) Subscribe to real-time AC status
     const statusTopic = topics.acStatus(c)
-    console.log('[AcMqtt] Subscribing to status topic:', statusTopic)
     mqtt.subscribe(statusTopic)
     unsubs.push(() => mqtt.unsubscribe(statusTopic))
 
     unsubs.push(mqtt.onMessage(statusTopic, (payload: unknown) => {
       const raw = payload as any
-      console.log('[AcMqtt] <<< status:', raw)
-
-      // Handle [{code, name, status}] array format (original backend)
-      if (Array.isArray(raw) && raw.length > 0) {
-        const st = parseDeviceStatus(raw[0].status)
-        const mode = MODE_MAP[st.mode] || 'cool'
-        const speed = FAN_MAP[st.fan] || 'mid'
-        deviceStore.applyAcState(key.value, {
-          power: st.status === 'on' || st.status === true,
-          temp: st.pretemperature ?? st.temperature ?? 24,
-          mode,
-          speed,
-          currentTemp: st.temperature ?? st.pretemperature ?? undefined,
-        })
-      }
-      // Handle {power, temp, mode, speed} direct format (new protocol)
-      else if (raw && (raw.power !== undefined || raw.temp !== undefined)) {
-        deviceStore.applyAcState(key.value, raw as Partial<AcState>)
-      }
-    }))
-
-    // 2) Request device config for AC devices
-    const configResponseTopic = topics.deviceConfigResponse(c)
-    mqtt.subscribe(configResponseTopic)
-    unsubs.push(() => mqtt.unsubscribe(configResponseTopic))
-    console.log('[AcMqtt] Subscribing to config response topic:', configResponseTopic)
-    unsubs.push(mqtt.onMessage(configResponseTopic, (payload: unknown) => {
-      const raw = payload as any
-      console.log('[AcMqtt] <<< device config response:', raw)
-      if (raw?.airconditioning) {
-        const acList = raw.airconditioning
-        if (acList.length > 0) {
-          const st = parseDeviceStatus(acList[0].status)
-          const mode = MODE_MAP[st.mode] || 'cool'
-          const speed = FAN_MAP[st.fan] || 'mid'
-          deviceStore.applyAcState(key.value, {
-            power: st.status === 'on' || st.status === true,
-            temp: st.pretemperature ?? 24,
-            mode,
-            speed,
-            currentTemp: st.temperature ?? undefined,
-          })
+      if (Array.isArray(raw)) {
+        const current = ac.value
+        if (current.devices.length === 0) return
+        let updated = [...current.devices]
+        for (const item of raw) {
+          if (item?.code) {
+            const idx = updated.findIndex((d) => d.id === item.code)
+            if (idx !== -1) {
+              updated[idx] = {
+                ...updated[idx],
+                status: { ...updated[idx].status, ...parseDeviceStatus(item.status) },
+              }
+            }
+          }
         }
+        deviceStore.applyAcState(key.value, { devices: updated, ...aggregate(updated) })
       }
     }))
 
-    // Publish device config request
-    const configPayload = {
-      spaceCode: c.spaceCode,
-      floorAreaCode: c.floorAreaCode,
-      floorCode: c.floorCode,
-      areaCode: c.deviceCode,
-    }
-    console.log('[AcMqtt] Publishing device config request:', configPayload)
-    mqtt.publish(topics.deviceConfigGet(), configPayload)
+    // 3) Start polling config every 30s
+    requestConfig()
+    configTimer = setInterval(requestConfig, 30000)
 
-    // Also fallback status query
+    // 4) Request current status
     mqtt.publish(topics.acAction(c), { action: 'status' })
   }
 
   setup()
 
   onScopeDispose(() => {
+    if (configTimer) { clearInterval(configTimer); configTimer = null }
     for (const unsub of unsubs) unsub()
     unsubs.length = 0
     if (key.value) deviceStore.release(key.value)
   })
 
   const togglePower = () => {
-    if (!ctx.value) return
-    mqtt.publish(topics.acAction(ctx.value), { action: 'power', value: !ac.value.power })
+    if (!ctx.value) { console.warn('[AcMqtt] togglePower: no ctx'); return }
+    const action = ac.value.power ? 'off' : 'on'
+    const topic = topics.acAction(ctx.value)
+    console.log('[AcMqtt] togglePower:', action, 'topic:', topic)
+    mqtt.publish(topic, { action })
   }
 
   const setTemp = (delta: number) => {
-    if (!ctx.value) return
+    if (!ctx.value) { console.warn('[AcMqtt] setTemp: no ctx'); return }
     const newTemp = ac.value.temp + delta
-    mqtt.publish(topics.acAction(ctx.value), { action: 'setTemp', value: newTemp })
+    const topic = topics.acAction(ctx.value)
+    console.log('[AcMqtt] setTemp:', delta, '→', newTemp, 'topic:', topic)
+    mqtt.publish(topic, { action: 'setTemp', value: newTemp })
   }
 
   const setMode = (mode: AcMode) => {
-    if (!ctx.value) return
-    mqtt.publish(topics.acAction(ctx.value), { action: 'setMode', value: mode })
+    if (!ctx.value) { console.warn('[AcMqtt] setMode: no ctx'); return }
+    const topic = topics.acAction(ctx.value)
+    console.log('[AcMqtt] setMode:', mode, 'topic:', topic)
+    mqtt.publish(topic, { action: 'setMode', value: mode })
   }
 
   const setSpeed = (speed: FanSpeed) => {
-    if (!ctx.value) return
-    mqtt.publish(topics.acAction(ctx.value), { action: 'setSpeed', value: speed })
+    if (!ctx.value) { console.warn('[AcMqtt] setSpeed: no ctx'); return }
+    const topic = topics.acAction(ctx.value)
+    console.log('[AcMqtt] setSpeed:', speed, 'topic:', topic)
+    mqtt.publish(topic, { action: 'setSpeed', value: speed })
   }
 
   return {

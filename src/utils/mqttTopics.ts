@@ -38,7 +38,7 @@ export const topics = {
   blindStatus: (c: SpaceContext) =>
     `${IOT_STATUS}/blind/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${c.deviceCode}/#`,
   blindAction: (c: SpaceContext) =>
-    `${IOT_ACTION}/blind/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/`,
+    `${IOT_ACTION}/blind/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${c.deviceCode}`,
 
   // --- Fresh Air ---
   freshAirStatus: (c: SpaceContext) =>
