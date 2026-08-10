@@ -84,8 +84,8 @@ export function useAcMqtt() {
     unsubs.push(mqtt.onMessage(configResponseTopic, (payload: unknown) => {
       const raw = payload as any
       console.log('[AcMqtt] <<< device config response:', raw)
-      if (raw?.devices?.airconditioning) {
-        const acList = raw.devices.airconditioning
+      if (raw?.airconditioning) {
+        const acList = raw.airconditioning
         if (acList.length > 0) {
           const st = parseDeviceStatus(acList[0].status)
           const mode = MODE_MAP[st.mode] || 'cool'

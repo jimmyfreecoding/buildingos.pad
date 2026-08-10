@@ -15,7 +15,14 @@ const props = defineProps<{
 const emit = defineEmits(['syncLightStatus', 'syncLight', 'syncAllLight', 'syncAcPower', 'syncAcTemp', 'syncAcSpeed', 'syncBlind'])
 
 // ====== Local state ======
-const lightallbutton = ref(0)
+const lightallbutton = computed(() => {
+  if (!props.lights.length) return -1
+  const allOn = props.lights.every((l: any) => l.status === 1)
+  const allOff = props.lights.every((l: any) => l.status === 0)
+  if (allOn) return 1
+  if (allOff) return 0
+  return -1
+})
 const acbutton = ref(0)
 const fanActive = ref(0)
 const dialogLight = ref(false)
@@ -78,14 +85,12 @@ const lightOp = (light: any) => {
   if (light.online == 0) return
   currtlight.value = light
   emit('syncLightStatus', true)
-  emit('syncLight', light)
   dialogLight.value = true
   dialogTxt.value = '确认' + (light.status === 0 ? '打开' : '关闭') + light.name
 }
 
 const setLight = () => {
   const light = currtlight.value
-  light.status = light.status === 1 ? 0 : 1
   emit('syncLightStatus', false)
   emit('syncLight', light)
   loadingFlag.value = true
@@ -100,8 +105,6 @@ const lightAllOP = (idx: number) => {
 
 const lightAll = () => {
   const on = currtstatus.value === 'off'
-  lightallbutton.value = on ? 1 : 0
-  props.lights.forEach((l: any) => { l.status = on ? 1 : 0 })
   emit('syncAllLight', on)
   emit('syncLightStatus', false)
   loadingFlag.value = true

@@ -2,7 +2,7 @@
 export interface LightDevice {
   id: string
   name: string
-  isOn: boolean
+  status: Record<string, any>
   type?: string
 }
 

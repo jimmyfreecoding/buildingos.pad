@@ -60,7 +60,7 @@ export function useZeekrData() {
     if (isConnected.value && mqttLights.value?.devices?.length) {
       return mqttLights.value.devices.map((d) => ({
         name: d.name,
-        status: d.isOn ? 1 : 0,
+        status: d.status?.status === 'on' || d.status?.status === 1 ? 1 : 0,
         online: 1,
       }))
     }

@@ -74,8 +74,8 @@ export function useBlindMqtt() {
     unsubs.push(mqtt.onMessage(configResponseTopic, (payload: unknown) => {
       const raw = payload as any
       console.log('[BlindMqtt] <<< device config response:', raw)
-      if (raw?.devices?.blind) {
-        const blindList = raw.devices.blind
+      if (raw?.blind) {
+        const blindList = raw.blind
         if (blindList.length > 0) {
           const st = parseDeviceStatus(blindList[0].status)
           if (st.position !== undefined) {
