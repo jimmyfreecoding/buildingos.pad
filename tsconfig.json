@@ -14,6 +14,9 @@
       ]
     }
   },
+  "exclude": [
+    "src/templates/wallPad/zeekr"
+  ],
   "include": [
     "src/**/*.ts",
     "src/**/*.vue",
