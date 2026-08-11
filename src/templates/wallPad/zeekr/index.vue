@@ -385,9 +385,9 @@ const map1 = new URL('./assets/images/map1.png', import.meta.url).href
                   <div>{{ otherFloor }}F-空闲：{{ Object.values(wcmanOtherFloorObj).filter((v:any) => v === 0).length }}</div>
                   <div class="flex-row align-center">
                     <div class="flex-row align-center">
-                      <div v-for="(val, key) in wcmanOtherFloorObj" :key="key"
-                        v-if="[0,1].includes(val) && key !== 'vip'"
-                        :class="val === 0 ? 'weizhi' : 'weizhi-active weizhi'"
+                      <div v-for="(v, k) in wcmanOtherFloorObj" :key="k"
+                        v-if="[0,1].includes(v) && k !== 'vip'"
+                        :class="v === 0 ? 'weizhi' : 'weizhi-active weizhi'"
                         style="margin-left:15px;"></div>
                     </div>
                     <el-divider direction="vertical" v-if="wcmanOtherFloorObj.hasOwnProperty('vip')" />
@@ -405,9 +405,9 @@ const map1 = new URL('./assets/images/map1.png', import.meta.url).href
                 <div class="txt1" style="font-size:72px;">{{ obj.floor }}</div>
                 <div v-if="obj.type === 'wc'" class="txt4 flex-row align-center justify-center">
                   <div class="flex-row align-center">
-                    <div v-for="(val, key) in wcmanStatusObj" :key="key"
-                      v-if="[0,1].includes(val) && key !== 'vip'"
-                      :class="val === 0 ? 'weizhi weizhi-margin' : 'weizhi-active weizhi-margin'"></div>
+                    <div v-for="(v, k) in wcmanStatusObj" :key="k"
+                      v-if="[0,1].includes(v) && k !== 'vip'"
+                      :class="v === 0 ? 'weizhi weizhi-margin' : 'weizhi-active weizhi-margin'"></div>
                     <el-divider direction="vertical" v-if="wcmanStatusObj.hasOwnProperty('vip')" />
                     <div v-if="[0,1].includes(wcmanStatusObj.vip)"
                       :class="wcmanStatusObj.vip === 0 ? 'weizhi weizhi-margin' : 'weizhi-active weizhi-margin'"></div>
@@ -415,9 +415,9 @@ const map1 = new URL('./assets/images/map1.png', import.meta.url).href
                 </div>
                 <div v-if="obj.type === 'wcw'" class="txt4 flex-row align-center justify-center">
                   <div class="flex-row align-center">
-                    <div v-for="(val, key) in wcwomanStatusObj" :key="key"
-                      v-if="[0,1].includes(val) && key !== 'vip'"
-                      :class="val === 0 ? 'weizhi weizhi-margin' : 'weizhi-active weizhi-margin'"></div>
+                    <div v-for="(v, k) in wcwomanStatusObj" :key="k"
+                      v-if="[0,1].includes(v) && k !== 'vip'"
+                      :class="v === 0 ? 'weizhi weizhi-margin' : 'weizhi-active weizhi-margin'"></div>
                     <el-divider direction="vertical" v-if="wcwomanStatusObj.hasOwnProperty('vip')" />
                     <div v-if="[0,1].includes(wcwomanStatusObj.vip)"
                       :class="wcwomanStatusObj.vip === 0 ? 'weizhi weizhi-margin' : 'weizhi-active weizhi-margin'"></div>
@@ -511,9 +511,9 @@ const map1 = new URL('./assets/images/map1.png', import.meta.url).href
                   }}</div>
                   <div class="flex-row" :class="{ 'wc-reverse': obj.type === 'wc2' }">
                     <div class="flex-row align-center">
-                      <div v-for="(val, key) in wcwomanOtherFloorObj" :key="key"
-                        v-if="[0,1].includes(val) && key !== 'vip'"
-                        :class="val === 0 ? 'weizhi' : 'weizhi-active weizhi'"
+                      <div v-for="(v, k) in wcwomanOtherFloorObj" :key="k"
+                        v-if="[0,1].includes(v) && k !== 'vip'"
+                        :class="v === 0 ? 'weizhi' : 'weizhi-active weizhi'"
                         style="margin-left:15px;"></div>
                     </div>
                   </div>
@@ -526,16 +526,16 @@ const map1 = new URL('./assets/images/map1.png', import.meta.url).href
               <div class="flex-col align-center" style="z-index:1;">
                 <div class="txt1" style="font-size:72px;">{{ obj.floor }}</div>
                 <div class="txt4 flex-row align-center justify-center">
-                  <div v-for="(val, key) in wcmanStatusObj" :key="key"
-                    v-if="[0,1].includes(val) && key !== 'vip'"
-                    :class="val === 0 ? 'weizhi weizhi-margin' : 'weizhi-active weizhi-margin'"></div>
+                  <div v-for="(v, k) in wcmanStatusObj" :key="k"
+                    v-if="[0,1].includes(v) && k !== 'vip'"
+                    :class="v === 0 ? 'weizhi weizhi-margin' : 'weizhi-active weizhi-margin'"></div>
                   <el-divider direction="vertical" v-if="wcmanStatusObj.hasOwnProperty('vip')" />
                   <div v-if="[0,1].includes(wcmanStatusObj.vip)"
                     :class="wcmanStatusObj.vip === 0 ? 'weizhi weizhi-margin' : 'weizhi-active weizhi-margin'"></div>
                   <el-divider direction="vertical" />
-                  <div v-for="(val, key) in wcwomanStatusObj" :key="key"
-                    v-if="[0,1].includes(val) && key !== 'vip'"
-                    :class="val === 0 ? 'weizhi weizhi-margin' : 'weizhi-active weizhi-margin'"></div>
+                  <div v-for="(v, k) in wcwomanStatusObj" :key="k"
+                    v-if="[0,1].includes(v) && k !== 'vip'"
+                    :class="v === 0 ? 'weizhi weizhi-margin' : 'weizhi-active weizhi-margin'"></div>
                 </div>
               </div>
             </div>

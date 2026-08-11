@@ -1,5 +1,7 @@
 import { reactive, ref } from 'vue'
 
+type WcStatusObj = Record<string, number> & { vip?: number }
+
 // ====== 空间信息 ======
 export const obj = ref({
   floor: '42F',
@@ -110,40 +112,40 @@ export const roomoSensorObj = ref({
 })
 
 // ====== 卫生间占位 ======
-export const wcmanStatusObj = ref({
+export const wcmanStatusObj = ref<WcStatusObj>({
   '1': 0,
   '2': 1,
   '3': 0,
   vip: 0,
 })
-export const wcwomanStatusObj = ref({
+export const wcwomanStatusObj = ref<WcStatusObj>({
   '1': 0,
   '2': 0,
   '3': 1,
 })
-export const wcmanOtherFloorObj = ref({
+export const wcmanOtherFloorObj = ref<WcStatusObj>({
   '1': 0,
   '2': 1,
   '3': 0,
   vip: 0,
 })
-export const wcwomanOtherFloorObj = ref({
+export const wcwomanOtherFloorObj = ref<WcStatusObj>({
   '1': 1,
   '2': 0,
   '3': 0,
 })
-export const wcmanOtherFloorObj2 = ref({
+export const wcmanOtherFloorObj2 = ref<WcStatusObj>({
   '1': 0,
   '2': 0,
   '3': 1,
 })
-export const wcwomanOtherFloorObj2 = ref({
+export const wcwomanOtherFloorObj2 = ref<WcStatusObj>({
   '1': 0,
   '2': 1,
   '3': 0,
 })
-export const ceowcStatusObj = ref({})
-export const ceowcStatusObj2 = ref({})
+export const ceowcStatusObj = ref<WcStatusObj>({})
+export const ceowcStatusObj2 = ref<WcStatusObj>({})
 
 // ====== 保洁 ======
 export const baojie = ref({

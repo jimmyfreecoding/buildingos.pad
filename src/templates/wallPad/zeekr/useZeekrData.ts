@@ -7,6 +7,8 @@ import { useAcMqtt } from '@/composables/useAcMqtt'
 import { isConnected, subscribe, onMessage } from '@/utils/mqtt'
 import * as mock from './mockData'
 
+type WcStatusObj = Record<string, number> & { vip?: number }
+
 function readInitData() {
   try {
     const raw = localStorage.getItem('initData')
@@ -98,7 +100,7 @@ export function useZeekrData() {
     if (isConnected.value && wcSensors.value?.length) {
       const tman = wcSensors.value.find((s) => s.room === 'TMAN')
       if (tman) {
-        const result: Record<string, number> = {}
+        const result: WcStatusObj = {}
         for (let i = 0; i < tman.total; i++) {
           result[String(i + 1)] = i < tman.occupied ? 1 : 0
         }
@@ -112,7 +114,7 @@ export function useZeekrData() {
     if (isConnected.value && wcSensors.value?.length) {
       const twoman = wcSensors.value.find((s) => s.room === 'TWOMAN')
       if (twoman) {
-        const result: Record<string, number> = {}
+        const result: WcStatusObj = {}
         for (let i = 0; i < twoman.total; i++) {
           result[String(i + 1)] = i < twoman.occupied ? 1 : 0
         }
