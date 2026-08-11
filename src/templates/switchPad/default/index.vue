@@ -1,339 +1,777 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Power, Lightbulb, ChevronLeft } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { useLightMqtt } from '@/composables/useLightMqtt'
+import { useAcMqtt } from '@/composables/useAcMqtt'
+import { isConnected } from '@/utils/mqtt'
 
+const router = useRouter()
+import type { AcMode, FanSpeed } from '@/types/device'
+
+// --- Room info ---
 const roomName = ref('')
 const roomCode = ref('')
 
 onMounted(() => {
   try {
-    const data = localStorage.getItem('initData')
-    if (data) {
-      const parsed = JSON.parse(data)
-      roomName.value = parsed.roomName || ''
-      roomCode.value = parsed.code || parsed.roomCode || ''
+    const raw = localStorage.getItem('initData')
+    if (raw) {
+      const data = JSON.parse(raw)
+      roomName.value = data.roomName || data.name || ''
+      roomCode.value = data.code || data.roomCode || ''
     }
-  } catch (e) { /* ignore */ }
+  } catch { /* ignore */ }
 })
 
-const currentTime = ref('')
-let timer: ReturnType<typeof setInterval> | null = null
+const displayRoom = computed(() => roomName.value || roomCode.value || '')
+
+// --- Clock ---
+const clock = ref('')
+let clockTimer: ReturnType<typeof setInterval> | null = null
+
+const updateClock = () => {
+  const d = new Date()
+  clock.value = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
+}
 
 onMounted(() => {
-  const updateTime = () => {
-    const now = new Date()
-    const h = now.getHours().toString().padStart(2, '0')
-    const m = now.getMinutes().toString().padStart(2, '0')
-    currentTime.value = `${h}:${m}`
-  }
-  updateTime()
-  timer = setInterval(updateTime, 10000)
+  updateClock()
+  clockTimer = setInterval(updateClock, 15000)
 })
 
 onUnmounted(() => {
-  if (timer) clearInterval(timer)
+  if (clockTimer) clearInterval(clockTimer)
 })
 
-const displayRoom = computed(() => {
-  return roomName.value || roomCode.value || ''
+// --- MQTT composables ---
+const { lights, toggleLight, setAll } = useLightMqtt()
+const { ac, toggleDevicePower, setDeviceTemp, setDeviceMode, setDeviceSpeed, togglePower } = useAcMqtt()
+
+// --- Logo triple-tap → init ---
+const logoTapCount = ref(0)
+let logoTapTimer: ReturnType<typeof setTimeout> | null = null
+const onLogoClick = () => {
+  logoTapCount.value++
+  if (logoTapCount.value >= 3) {
+    logoTapCount.value = 0
+    router.push('/init')
+    return
+  }
+  if (logoTapTimer) clearTimeout(logoTapTimer)
+  logoTapTimer = setTimeout(() => { logoTapCount.value = 0 }, 800)
+}
+
+// --- Screen state ---
+const screen = ref(0)
+
+// --- Swipe ---
+let downX = 0
+const onDown = (e: PointerEvent) => { downX = e.clientX }
+const onUp = (e: PointerEvent) => {
+  const dx = e.clientX - downX
+  if (Math.abs(dx) > 40) {
+    screen.value = Math.min(2, Math.max(0, screen.value + (dx < 0 ? 1 : -1)))
+  }
+}
+
+// --- Background ---
+const BGS = [
+  'background-image:radial-gradient(circle at 32% 46%, #ff4a1a 0%, #b81806 26%, #3d0703 46%, #0b0708 72%)',
+  'background-image:linear-gradient(155deg,#2a2c30 0%,#141517 55%,#0a0a0b 100%)',
+  'background-image:radial-gradient(circle at 70% 25%, #1d3a5c 0%, #10203a 40%, #07090f 78%)',
+  'background-image:linear-gradient(180deg,#111 0%,#000 100%)',
+]
+const bgIndex = ref(0)
+const bgStyle = computed(() => BGS[bgIndex.value])
+const cycleBg = () => { bgIndex.value = (bgIndex.value + 1) % BGS.length }
+
+// --- Confirm dialog ---
+const dialogVisible = ref(false)
+const dialogText = ref('')
+let pendingAction: (() => void) | null = null
+
+const showConfirm = (text: string, action: () => void) => {
+  dialogText.value = text
+  pendingAction = action
+  dialogVisible.value = true
+}
+
+const onConfirm = () => {
+  dialogVisible.value = false
+  if (pendingAction) {
+    pendingAction()
+    pendingAction = null
+  }
+}
+
+const onCancel = () => {
+  dialogVisible.value = false
+  pendingAction = null
+}
+
+// --- Helpers ---
+const MODE_MAP_REV: Record<number, AcMode> = { 1: 'auto', 2: 'vent', 3: 'cool', 4: 'heat', 5: 'vent' as AcMode }
+const FAN_MAP_REV: Record<number, FanSpeed> = { 15: 'low', 45: 'mid', 75: 'high' }
+
+const MODE_LABEL: Record<string, string> = { cool: '制冷', heat: '制热', vent: '送风', auto: '自动' }
+const MODE_COLOR: Record<string, string> = { cool: '74,168,255', heat: '236,48,19', vent: '222,222,222', auto: '47,191,160' }
+const SPEED_LABEL: Record<string, string> = { low: '低风', mid: '中风', high: '高风' }
+
+const MODE_CYCLE: AcMode[] = ['cool', 'heat', 'vent', 'auto']
+const SPEED_CYCLE: FanSpeed[] = ['low', 'mid', 'high']
+
+const getDeviceOn = (d: any) => d.status?.status === 'on' || d.status?.status === true || d.status?.status === 1
+
+const getDeviceTemp = (d: any): number => {
+  const t = Number(d.status?.pretemperature ?? d.status?.temperature)
+  return isNaN(t) ? 24 : t
+}
+
+const getDeviceMode = (d: any): AcMode => MODE_MAP_REV[Number(d.status?.mode)] || 'cool'
+
+const getDeviceSpeed = (d: any): FanSpeed => FAN_MAP_REV[Number(d.status?.fan)] || 'mid'
+
+const getTempPercent = (d: any): string => {
+  const t = getDeviceTemp(d)
+  return ((t - 16) / 14 * 100).toFixed(1) + '%'
+}
+
+// --- Lighting devices (from MQTT) ---
+const lightDevices = computed(() => {
+  if (isConnected.value && lights.value?.devices?.length) {
+    return lights.value.devices
+  }
+  return []
 })
 
-const lights = ref([
-  { id: 1, name: '灯1', isOn: false },
-  { id: 2, name: '灯2', isOn: false },
-  { id: 3, name: '灯3', isOn: false },
-])
+// --- AC devices (from MQTT) ---
+const acDevices = computed(() => {
+  if (isConnected.value && ac.value?.devices?.length) {
+    return ac.value.devices
+  }
+  return []
+})
 
-const toggleLight = (id: number) => {
-  const light = lights.value.find(l => l.id === id)
-  if (light) light.isOn = !light.isOn
+const activeAcIndex = ref(0)
+
+const activeAcDevice = computed(() => {
+  return acDevices.value[activeAcIndex.value] || null
+})
+
+// --- Scene state (local only) ---
+const activeScene = ref(-1)
+const sceneList = [
+  { name: '会议', icon: 'meeting' },
+  { name: '离开', icon: 'leave' },
+]
+
+const loadingSceneIdx = ref(-1)
+
+const setScene = (idx: number) => {
+  if (!isConnected.value) return
+  activeScene.value = idx
+  loadingSceneIdx.value = idx
+
+  if (idx === 0) {
+    // 会议：全开
+    setAll(true)
+    if (!ac.value.power) togglePower()
+  } else if (idx === 1) {
+    // 离开：全关
+    setAll(false)
+    if (ac.value.power) togglePower()
+  }
+
+  setTimeout(() => {
+    if (loadingSceneIdx.value === idx) {
+      loadingSceneIdx.value = -1
+      activeScene.value = -1
+    }
+  }, 3000)
 }
 
-type AcMode = 'cool' | 'heat' | 'vent'
-type AcSpeed = 'low' | 'medium' | 'high'
+// --- Lighting actions ---
+const loadingLightId = ref<string | null>(null)
 
-interface AcUnit {
-  id: number
-  name: string
-  isOn: boolean
-  temp: number
-  mode: AcMode
-  speed: AcSpeed
+const handleToggleLight = (device: any) => {
+  if (!isConnected.value) return
+  toggleLight(device.id)
+  loadingLightId.value = device.id
+  setTimeout(() => {
+    if (loadingLightId.value === device.id) loadingLightId.value = null
+  }, 1000)
 }
 
-const acList = ref<AcUnit[]>([
-  { id: 1, name: '空调1', isOn: false, temp: 26, mode: 'cool', speed: 'medium' },
-  { id: 2, name: '空调2', isOn: false, temp: 24, mode: 'cool', speed: 'medium' },
-])
+// --- AC actions ---
+const loadingAcId = ref<string | null>(null)
 
-const modeLabel = (mode: string) => ({ cool: '制冷', heat: '制热', vent: '送风' }[mode] || mode)
-const speedLabel = (speed: string) => ({ low: '低风', medium: '中风', high: '高风' }[speed] || speed)
-
-const currentView = ref<'main' | 'acDetail'>('main')
-const activeAcId = ref<number | null>(null)
-
-const activeAc = computed(() => acList.value.find(a => a.id === activeAcId.value))
-
-const openAcDetail = (id: number) => {
-  activeAcId.value = id
-  currentView.value = 'acDetail'
+const handleToggleAcPower = (device: any) => {
+  if (!isConnected.value) return
+  toggleDevicePower(device.id)
+  loadingAcId.value = device.id
+  setTimeout(() => {
+    if (loadingAcId.value === device.id) loadingAcId.value = null
+  }, 1000)
 }
 
-const closeAcDetail = () => {
-  currentView.value = 'main'
+const handleSetTemp = (device: any, temp: number) => {
+  if (!isConnected.value) return
+  const clamped = Math.min(30, Math.max(16, Math.round(temp)))
+  setDeviceTemp(device.id, clamped)
 }
 
-const toggleAcPower = (id: number) => {
-  const ac = acList.value.find(a => a.id === id)
-  if (ac) ac.isOn = !ac.isOn
+const handleCycleMode = (device: any) => {
+  if (!isConnected.value) return
+  const currentMode = getDeviceMode(device)
+  const idx = MODE_CYCLE.indexOf(currentMode)
+  const nextMode = MODE_CYCLE[(idx + 1) % MODE_CYCLE.length]
+  setDeviceMode(device.id, nextMode)
 }
 
-const setAcMode = (id: number, mode: AcMode) => {
-  const ac = acList.value.find(a => a.id === id)
-  if (ac) ac.mode = mode
+const handleCycleSpeed = (device: any) => {
+  if (!isConnected.value) return
+  const currentSpeed = getDeviceSpeed(device)
+  const idx = SPEED_CYCLE.indexOf(currentSpeed)
+  const nextSpeed = SPEED_CYCLE[(idx + 1) % SPEED_CYCLE.length]
+  setDeviceSpeed(device.id, nextSpeed)
 }
 
-const setAcSpeed = (id: number, speed: AcSpeed) => {
-  const ac = acList.value.find(a => a.id === id)
-  if (ac) ac.speed = speed
-}
-
-const setAcTemp = (id: number, temp: number) => {
-  const ac = acList.value.find(a => a.id === id)
-  if (ac) ac.temp = Math.min(30, Math.max(16, temp))
+// --- Vertical slider ---
+const onSliderDown = (e: PointerEvent) => {
+  if (!activeAcDevice.value || !isConnected.value) return
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  const p = Math.min(1, Math.max(0, 1 - (e.clientY - rect.top) / rect.height))
+  const temp = Math.round(16 + p * 14)
+  handleSetTemp(activeAcDevice.value, temp)
 }
 </script>
 
 <template>
-  <div class="w-full h-full bg-[#1a1a2e] text-white flex flex-col select-none overflow-hidden">
-
-    <template v-if="currentView === 'main'">
-      <header class="flex justify-between items-center px-5 py-4 shrink-0">
-        <span class="text-base font-medium text-white/90 tracking-wide">{{ displayRoom }}</span>
-        <span class="text-2xl font-light tracking-wider text-white/80">{{ currentTime }}</span>
-      </header>
-
-      <div class="flex-1 flex flex-col justify-center px-5">
-        <div class="text-sm text-white/50 tracking-widest mb-5">照明</div>
-        <div class="flex justify-center gap-8">
-          <div
-            v-for="light in lights"
-            :key="light.id"
-            class="flex flex-col items-center gap-3 cursor-pointer"
-            @click="toggleLight(light.id)"
-          >
-            <div
-              class="w-[72px] h-[72px] rounded-full flex items-center justify-center transition-all duration-300 active:scale-90"
-              :class="light.isOn
-                ? 'bg-yellow-400 shadow-[0_0_28px_rgba(250,204,21,0.5)]'
-                : 'bg-white/10 border-2 border-white/15'"
-            >
-              <Lightbulb
-                class="w-9 h-9 transition-colors duration-300"
-                :class="light.isOn ? 'text-[#1a1a2e] fill-[#1a1a2e]' : 'text-white/35'"
-              />
-            </div>
-            <span
-              class="text-sm font-medium transition-colors duration-300"
-              :class="light.isOn ? 'text-white' : 'text-white/40'"
-            >{{ light.name }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="mx-8 border-t border-white/8"></div>
-
-      <div class="flex-1 flex flex-col justify-center px-5">
-        <div class="text-sm text-white/50 tracking-widest mb-5">空调</div>
-        <div class="flex gap-4">
-          <div
-            v-for="ac in acList"
-            :key="ac.id"
-            class="flex-1 bg-white/5 rounded-2xl p-4 flex flex-col gap-3 cursor-pointer active:scale-[0.97] transition-all duration-200 border"
-            :class="ac.isOn ? 'border-white/20' : 'border-transparent'"
-            @click="openAcDetail(ac.id)"
-          >
-            <div class="flex justify-between items-center">
-              <span class="text-sm font-medium text-white/80">{{ ac.name }}</span>
-              <div
-                class="w-2 h-2 rounded-full"
-                :class="ac.isOn ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.6)]' : 'bg-white/20'"
-              ></div>
-            </div>
-
-            <div class="flex items-baseline gap-0.5">
-              <span
-                class="text-4xl font-light tracking-tighter"
-                :class="ac.isOn ? 'text-white' : 'text-white/30'"
-              >{{ ac.temp }}</span>
-              <span
-                class="text-sm"
-                :class="ac.isOn ? 'text-white/60' : 'text-white/20'"
-              >°C</span>
-            </div>
-
-            <div class="flex gap-2">
-              <span
-                class="text-xs px-2 py-0.5 rounded-full"
-                :class="ac.isOn
-                  ? 'bg-white/15 text-white/70'
-                  : 'bg-white/5 text-white/25'"
-              >{{ modeLabel(ac.mode) }}</span>
-              <span
-                class="text-xs px-2 py-0.5 rounded-full"
-                :class="ac.isOn
-                  ? 'bg-white/15 text-white/70'
-                  : 'bg-white/5 text-white/25'"
-              >{{ speedLabel(ac.speed) }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="h-4 shrink-0"></div>
-    </template>
-
-    <template v-if="currentView === 'acDetail' && activeAc">
-      <header class="flex items-center gap-3 px-4 py-4 shrink-0">
-        <button
-          class="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center active:scale-90 transition-all"
-          @click="closeAcDetail"
-        >
-          <ChevronLeft class="w-5 h-5 text-white/70" />
-        </button>
-        <span class="text-base font-medium text-white/80">{{ activeAc.name }}</span>
-        <div class="flex-1"></div>
-        <div
-          class="w-2.5 h-2.5 rounded-full"
-          :class="activeAc.isOn ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]' : 'bg-white/20'"
-        ></div>
-      </header>
-
-      <div class="flex-1 flex flex-col items-center justify-center gap-8 px-6">
-        <div class="flex items-baseline gap-1">
-          <span
-            class="text-[7rem] font-light leading-none tracking-tighter"
-            :class="activeAc.isOn ? 'text-white' : 'text-white/20'"
-          >{{ activeAc.temp }}</span>
-          <span
-            class="text-2xl"
-            :class="activeAc.isOn ? 'text-white/50' : 'text-white/15'"
-          >°C</span>
-        </div>
-
-        <div class="w-full flex items-center gap-4">
-          <button
-            class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-xl font-light active:scale-90 transition-all shrink-0"
-            :class="!activeAc.isOn ? 'opacity-30 pointer-events-none' : ''"
-            @click="setAcTemp(activeAc.id, activeAc.temp - 1)"
-          >−</button>
-          <div class="flex-1 relative flex items-center">
-            <input
-              type="range"
-              min="16"
-              max="30"
-              step="1"
-              :value="activeAc.temp"
-              :disabled="!activeAc.isOn"
-              class="w-full h-2 rounded-full appearance-none cursor-pointer"
-              :class="activeAc.isOn ? 'ac-slider-on' : 'ac-slider-off'"
-              @input="(e: Event) => setAcTemp(activeAc.id, Number((e.target as HTMLInputElement).value))"
-            />
-          </div>
-          <button
-            class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-xl font-light active:scale-90 transition-all shrink-0"
-            :class="!activeAc.isOn ? 'opacity-30 pointer-events-none' : ''"
-            @click="setAcTemp(activeAc.id, activeAc.temp + 1)"
-          >+</button>
-        </div>
-      </div>
-
-      <div class="shrink-0 px-5 pb-5 flex flex-col gap-4">
+  <div class="w-full h-full flex items-center justify-center bg-[#111]">
+    <!-- Confirm Dialog -->
+    <div
+      v-if="dialogVisible"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      @click="onCancel"
+    >
+      <div
+        class="bg-white/95 rounded-2xl px-8 py-6 mx-8 text-center shadow-xl"
+        @click.stop
+      >
+        <p class="text-[#131313] text-base font-medium mb-6">{{ dialogText }}</p>
         <div class="flex gap-3">
           <button
-            v-for="mode in (['cool', 'heat', 'vent'] as AcMode[])"
-            :key="mode"
-            class="flex-1 h-12 rounded-xl text-sm font-medium transition-all duration-200 active:scale-95"
-            :class="[
-              activeAc.mode === mode
-                ? 'bg-white text-[#1a1a2e]'
-                : 'bg-white/8 text-white/50',
-              !activeAc.isOn ? 'opacity-30 pointer-events-none' : ''
-            ]"
-            @click="setAcMode(activeAc.id, mode)"
-          >
-            {{ modeLabel(mode) }}
-          </button>
-        </div>
-
-        <div class="flex gap-3">
+            class="flex-1 h-10 rounded-xl bg-black/8 text-[#131313] text-sm font-medium active:scale-95 transition-all"
+            @click="onCancel"
+          >取消</button>
           <button
-            v-for="speed in (['low', 'medium', 'high'] as AcSpeed[])"
-            :key="speed"
-            class="flex-1 h-12 rounded-xl text-sm font-medium transition-all duration-200 active:scale-95"
-            :class="[
-              activeAc.speed === speed
-                ? 'bg-white text-[#1a1a2e]'
-                : 'bg-white/8 text-white/50',
-              !activeAc.isOn ? 'opacity-30 pointer-events-none' : ''
-            ]"
-            @click="setAcSpeed(activeAc.id, speed)"
-          >
-            {{ speedLabel(speed) }}
-          </button>
+            class="flex-1 h-10 rounded-xl bg-[#131313] text-white text-sm font-medium active:scale-95 transition-all"
+            @click="onConfirm"
+          >确认</button>
         </div>
-
-        <button
-          class="w-full h-14 rounded-2xl flex items-center justify-center gap-3 text-lg font-medium transition-all duration-200 active:scale-[0.97]"
-          :class="activeAc.isOn
-            ? 'bg-red-500/90 text-white shadow-[0_4px_20px_rgba(239,68,68,0.35)]'
-            : 'bg-white/10 text-white/50'"
-          @click="toggleAcPower(activeAc.id)"
-        >
-          <Power class="w-5 h-5" />
-          <span>{{ activeAc.isOn ? '关闭' : '开机' }}</span>
-        </button>
       </div>
-    </template>
+    </div>
 
+    <!-- Main Frame -->
+    <div
+      class="frame"
+      @pointerdown="onDown"
+      @pointerup="onUp"
+    >
+      <!-- Background gradient -->
+      <div class="bg" :style="bgStyle"></div>
+      <div class="scrim"></div>
+
+      <!-- Header -->
+      <div class="hdr">
+        <span class="brand" style="cursor:pointer" @click.stop="onLogoClick">smart</span>
+        <span class="clock">{{ clock }}</span>
+        <span class="dot-live"></span>
+      </div>
+
+      <!-- Viewport -->
+      <div class="viewport">
+        <div class="track" :style="{ transform: 'translateX(' + (-480 * screen) + 'px)' }">
+
+          <!-- ===================== LIGHTING ===================== -->
+          <div class="scr">
+            <div class="flex items-center justify-between">
+              <div class="room room-sm">
+                <span class="num">{{ displayRoom || '--' }}</span>
+                <span class="sub">{{ displayRoom ? '· 照明' : '' }}</span>
+              </div>
+              <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="1.2" stroke-linecap="round">
+                <path d="M12 2v6"/>
+                <path d="M4 14a8 8 0 0 1 16 0z"/>
+                <path d="M12 17v4M8 17l-2.5 3M16 17l2.5 3"/>
+              </svg>
+            </div>
+
+            <!-- No devices state -->
+            <div v-if="lightDevices.length === 0" class="flex-1 flex items-center justify-center">
+              <span class="text-white/30 text-sm">暂无照明设备</span>
+            </div>
+
+            <!-- Device tiles -->
+            <div v-else class="tiles">
+              <button
+                v-for="d in lightDevices"
+                :key="d.id"
+                class="tile"
+                :class="{ on: getDeviceOn(d) }"
+                :disabled="loadingLightId === d.id"
+                @click="handleToggleLight(d)"
+              >
+                <!-- Loading spinner -->
+                <svg v-if="loadingLightId === d.id" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" class="animate-spin">
+                  <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+                  <path d="M12 2a10 10 0 0 1 10 10" stroke-opacity="1"/>
+                </svg>
+                <!-- Lightbulb icon -->
+                <svg v-else width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 18h6"/>
+                  <path d="M10 22h4"/>
+                  <path d="M12 2a6 6 0 0 0-4 10.5c.7.6 1 1.4 1 2.5h6c0-1.1.3-1.9 1-2.5A6 6 0 0 0 12 2z"/>
+                </svg>
+                <span class="px-2">{{ d.name }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- ===================== AC ===================== -->
+          <div class="scr">
+            <div class="flex items-center justify-between">
+              <div class="room room-xs">
+                <span class="num">{{ displayRoom || '--' }}</span>
+                <span class="sub">{{ displayRoom ? '· 空调' : '' }}</span>
+              </div>
+              <!-- Unit tabs -->
+              <div v-if="acDevices.length > 0" class="unit-tabs">
+                <button
+                  v-for="(d, i) in acDevices"
+                  :key="d.id"
+                  class="unit-tab"
+                  :class="{ on: activeAcIndex === i }"
+                  @click="activeAcIndex = i"
+                >{{ d.name }}</button>
+              </div>
+            </div>
+
+            <!-- No devices -->
+            <div v-if="!activeAcDevice" class="flex-1 flex items-center justify-center">
+              <span class="text-white/30 text-sm">暂无空调设备</span>
+            </div>
+
+            <!-- Active device controls -->
+            <template v-else>
+              <div class="temp-row">
+                <div class="temp-box">
+                  <div class="temp-num" :class="{ 'opacity-30': !getDeviceOn(activeAcDevice) }">
+                    <span class="v">{{ getDeviceTemp(activeAcDevice) }}</span>
+                    <span class="u">°C</span>
+                  </div>
+                </div>
+                <div v-if="getDeviceOn(activeAcDevice)" class="track-v" @pointerdown="onSliderDown">
+                  <div class="fill" :style="{ height: getTempPercent(activeAcDevice) }"></div>
+                </div>
+              </div>
+
+              <div class="ac-actions">
+                <button
+                  class="act-btn"
+                  style="flex:1"
+                  :class="{ on: getDeviceOn(activeAcDevice) }"
+                  :disabled="loadingAcId === activeAcDevice.id"
+                  @click="handleToggleAcPower(activeAcDevice)"
+                >
+                  <svg v-if="loadingAcId === activeAcDevice.id" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" class="animate-spin">
+                    <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+                    <path d="M12 2a10 10 0 0 1 10 10" stroke-opacity="1"/>
+                  </svg>
+                  <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+                    <path d="M12 3v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/>
+                  </svg>
+                </button>
+                <button
+                  class="act-btn"
+                  style="flex:1.4"
+                  :class="{ on: getDeviceOn(activeAcDevice) }"
+                  :style="getDeviceOn(activeAcDevice)
+                    ? { background: 'rgb(' + MODE_COLOR[getDeviceMode(activeAcDevice)] + ')', color: getDeviceMode(activeAcDevice) === 'vent' ? '#131313' : '#fff' }
+                    : {}"
+                  @click="handleCycleMode(activeAcDevice)"
+                >{{ MODE_LABEL[getDeviceMode(activeAcDevice)] }}</button>
+                <button
+                  class="act-btn"
+                  style="flex:1.4"
+                  :class="{ on: getDeviceOn(activeAcDevice) }"
+                  @click="handleCycleSpeed(activeAcDevice)"
+                >风速 {{ SPEED_LABEL[getDeviceSpeed(activeAcDevice)] }}</button>
+              </div>
+            </template>
+          </div>
+
+          <!-- ===================== SCENES ===================== -->
+          <div class="scr">
+            <div class="room room-sm">
+              <span class="num">{{ displayRoom || '--' }}</span>
+              <span class="sub">{{ displayRoom ? '· 场景' : '' }}</span>
+            </div>
+            <div class="tiles">
+              <button
+                v-for="(scene, i) in sceneList"
+                :key="i"
+                class="tile"
+                :class="{ on: activeScene === i }"
+                :disabled="loadingSceneIdx >= 0"
+                @click="setScene(i)"
+              >
+                <!-- Meeting icon -->
+                <svg v-if="scene.icon === 'meeting'" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 20h8M12 18v2"/>
+                </svg>
+                <!-- Presentation icon -->
+                <svg v-else-if="scene.icon === 'presentation'" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/>
+                </svg>
+                <!-- Release icon -->
+                <svg v-else-if="scene.icon === 'release'" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+                </svg>
+                <!-- Leave icon -->
+                <svg v-else width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>
+                </svg>
+                <span>{{ scene.name }}</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Dot navigation -->
+      <div class="dots">
+        <button
+          v-for="i in 3"
+          :key="i"
+          class="dotbtn"
+          :class="screen === i - 1 ? 'on' : 'off'"
+          @click="screen = i - 1"
+        ></button>
+      </div>
+
+      <!-- Background cycle -->
+      <button class="bgbtn" @click="cycleBg">切换背景 →</button>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.ac-slider-on {
-  background: linear-gradient(to right, #4ade80 0%, #facc15 50%, #ef4444 100%);
-  accent-color: #ffffff;
+.frame {
+  position: relative;
+  width: 480px;
+  height: 480px;
+  overflow: hidden;
+  background: #0a0a0b;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 30px 70px rgba(0,0,0,.5);
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
 }
 
-.ac-slider-on::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 28px;
-  height: 28px;
+.bg {
+  position: absolute;
+  inset: 0;
+  transition: opacity .5s;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,.4), rgba(0,0,0,.1) 40%, rgba(0,0,0,.5));
+}
+
+.hdr {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 26px 0;
+}
+
+.brand {
+  font: 700 13px/1 Archivo, sans-serif;
+  letter-spacing: .24em;
+  color: rgba(255,255,255,.85);
+}
+
+.clock {
+  font: 400 15px/1 Archivo, sans-serif;
+  color: rgba(255,255,255,.9);
+  font-variant-numeric: tabular-nums;
+}
+
+.dot-live {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  background: #ec3013;
+  box-shadow: 0 0 10px #ec3013;
+}
+
+.viewport {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
+.track {
+  display: flex;
+  width: 1440px;
+  height: 100%;
+  transition: transform .42s cubic-bezier(.4,0,.2,1);
+}
+
+.scr {
+  width: 480px;
+  box-sizing: border-box;
+  padding: 16px 26px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.room {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.room .num {
+  font: 600 72px/1 Archivo, sans-serif;
+  color: #fff;
+  letter-spacing: -.02em;
+}
+
+.room .sub {
+  font: 400 13px/1 'Noto Sans SC', sans-serif;
+  color: rgba(255,255,255,.7);
+}
+
+.room-sm .num {
+  font: 600 64px/1 Archivo, sans-serif;
+  color: #fff;
+  letter-spacing: -.02em;
+}
+
+.room-xs .num {
+  font: 600 48px/1 Archivo, sans-serif;
+  color: #fff;
+  letter-spacing: -.02em;
+}
+
+.tiles {
+  margin-top: auto;
+  padding-bottom: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.tile {
+  all: unset;
+  box-sizing: border-box;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  border-radius: 26px;
+  backdrop-filter: blur(14px);
+  background: rgba(255,255,255,.13);
+  color: rgba(255,255,255,.78);
+  font: 400 15px/1 'Noto Sans SC', sans-serif;
   cursor: pointer;
-  border: none;
+  transition: all .24s;
 }
 
-.ac-slider-on::-webkit-slider-runnable-track {
+.tile.on {
+  background: rgba(255,255,255,.94);
+  color: #131313;
+}
+
+.unit-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.unit-tab {
+  all: unset;
+  padding: 6px 13px;
+  border-radius: 16px;
+  font: 400 12px/1 'Noto Sans SC', sans-serif;
+  cursor: pointer;
+  transition: all .2s;
+  color: rgba(255,255,255,.7);
+}
+
+.unit-tab.on {
+  background: rgba(255,255,255,.92);
+  color: #131313;
+}
+
+.temp-row {
+  margin-top: 16px;
+  margin-bottom: 16px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 14px;
+}
+
+.temp-box {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.temp-num {
+  display: flex;
+  align-items: flex-start;
+  gap: 3px;
+  color: #fff;
+}
+
+.temp-num .v {
+  font: 600 104px/.8 Archivo, sans-serif;
+  letter-spacing: -.045em;
+  font-variant-numeric: tabular-nums;
+}
+
+.temp-num .u {
+  font: 400 28px/1 Archivo, sans-serif;
+  padding-top: 10px;
+}
+
+.mode-row {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.mode-dot {
+  width: 8px;
   height: 8px;
-  border-radius: 4px;
-  background: linear-gradient(to right, #4ade80 0%, #facc15 50%, #ef4444 100%);
-}
-
-.ac-slider-off {
-  background: rgba(255, 255, 255, 0.1);
-  accent-color: rgba(255, 255, 255, 0.2);
-}
-
-.ac-slider-off::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 28px;
-  height: 28px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-  cursor: not-allowed;
-  border: none;
+  transition: background .3s;
+  background: rgba(255,255,255,.3);
+}
+
+.mode-label {
+  font: 400 13px/1 'Noto Sans SC', sans-serif;
+  letter-spacing: .22em;
+  color: #fff;
+}
+
+.track-v {
+  flex: none;
+  position: relative;
+  width: 56px;
+  border-radius: 28px;
+  overflow: hidden;
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+  background: rgba(255,255,255,.13);
+}
+
+.track-v .fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255,255,255,.9);
+  transition: height .12s;
+}
+
+.ac-actions {
+  margin-top: 0;
+  padding-bottom: 18px;
+  display: flex;
+  gap: 9px;
+}
+
+.act-btn {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 58px;
+  border-radius: 29px;
+  backdrop-filter: blur(14px);
+  background: rgba(255,255,255,.13);
+  color: rgba(255,255,255,.78);
+  font: 400 15px/1 'Noto Sans SC', sans-serif;
+  cursor: pointer;
+  transition: all .24s;
+}
+
+.act-btn.on {
+  background: rgba(255,255,255,.94);
+  color: #131313;
+}
+
+.dots {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 26px;
+}
+
+.dotbtn {
+  all: unset;
+  height: 5px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all .3s;
+}
+
+.dotbtn.on {
+  width: 18px;
+  background: rgba(255,255,255,.92);
+}
+
+.dotbtn.off {
+  width: 5px;
+  background: rgba(255,255,255,.35);
+}
+
+.bgbtn {
+  all: unset;
+  margin-top: 14px;
+  align-self: flex-start;
+  padding: 6px 12px;
+  border: 1.5px solid rgba(255,255,255,.3);
+  color: #fff;
+  font: 400 11px/1 'Noto Sans SC', sans-serif;
+  cursor: pointer;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 0.8s linear infinite;
 }
 </style>

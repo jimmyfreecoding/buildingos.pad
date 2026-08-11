@@ -180,6 +180,59 @@ export function useAcMqtt() {
     mqtt.publish(topic, { action: 'setSpeed', value: speed })
   }
 
+  const toggleDevicePower = (deviceId: string) => {
+    if (!ctx.value) { console.warn('[AcMqtt] toggleDevicePower: no ctx'); return }
+    const device = ac.value.devices.find((d) => d.id === deviceId)
+    if (!device) { console.warn('[AcMqtt] toggleDevicePower: device not found:', deviceId); return }
+    const on = isDeviceOn(device)
+    const topic = topics.acAction(ctx.value) + '/' + device.name
+    if (on) {
+      console.log('[AcMqtt] toggleDevicePower:', device.name, '-> off', 'topic:', topic)
+      mqtt.publish(topic, { action: 'off' })
+    } else {
+      publishOn(device, {})
+    }
+  }
+
+  const MODE_REV: Record<string, number> = { auto: 1, vent: 2, cool: 3, heat: 4 }
+  const FAN_REV: Record<string, number> = { low: 15, mid: 45, high: 75 }
+
+  const readDeviceNums = (device: AcDevice) => ({
+    temp: Number(device.status?.pretemperature ?? device.status?.temperature) || 16,
+    mode: Number(device.status?.mode) || 3,
+    fan: Number(device.status?.fan) || 45,
+  })
+
+  const publishOn = (device: AcDevice, overrides: { temp?: number; mode?: number; fan?: number }) => {
+    if (!ctx.value) return
+    const nums = readDeviceNums(device)
+    const topic = topics.acAction(ctx.value) + '/' + device.name
+    const payload = { action: 'on', temperature: overrides.temp ?? nums.temp, mode: overrides.mode ?? nums.mode, fan: overrides.fan ?? nums.fan }
+    console.log('[AcMqtt] publishOn:', device.name, 'topic:', topic, 'payload:', JSON.stringify(payload))
+    mqtt.publish(topic, payload)
+  }
+
+  const setDeviceTemp = (deviceId: string, temp: number) => {
+    const device = ac.value.devices.find((d) => d.id === deviceId)
+    if (!device) { console.warn('[AcMqtt] setDeviceTemp: device not found:', deviceId); return }
+    if (!isDeviceOn(device)) return
+    publishOn(device, { temp })
+  }
+
+  const setDeviceMode = (deviceId: string, mode: AcMode) => {
+    const device = ac.value.devices.find((d) => d.id === deviceId)
+    if (!device) { console.warn('[AcMqtt] setDeviceMode: device not found:', deviceId); return }
+    if (!isDeviceOn(device)) return
+    publishOn(device, { mode: MODE_REV[mode] || 3 })
+  }
+
+  const setDeviceSpeed = (deviceId: string, speed: FanSpeed) => {
+    const device = ac.value.devices.find((d) => d.id === deviceId)
+    if (!device) { console.warn('[AcMqtt] setDeviceSpeed: device not found:', deviceId); return }
+    if (!isDeviceOn(device)) return
+    publishOn(device, { fan: FAN_REV[speed] || 45 })
+  }
+
   return {
     ac,
     ctx,
@@ -187,5 +240,9 @@ export function useAcMqtt() {
     setTemp,
     setMode,
     setSpeed,
+    toggleDevicePower,
+    setDeviceTemp,
+    setDeviceMode,
+    setDeviceSpeed,
   }
 }

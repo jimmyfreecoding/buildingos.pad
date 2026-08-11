@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { getSpaceData } from '@/api/space'
 import { getTemplates } from '@/templates/registry'
 import type { Space } from '@/types/space'
+
+const router = useRouter()
 
 const version = __APP_VERSION__
 
@@ -200,7 +203,7 @@ const handleConfirmTemplate = () => {
     data.template = selectedTemplate.value
     localStorage.setItem('initData', JSON.stringify(data))
   } catch { /* ignore */ }
-  window.location.reload()
+  router.push('/' + padType.value)
 }
 </script>
 
