@@ -1,0 +1,38 @@
+name: Build & Publish
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install & Build
+        run: npm install && npm run build
+
+      - name: Zip dist
+        run: cd dist && zip -r ../pad.zip .
+
+      - name: Login CNB
+        run: echo "${{ secrets.CNB_TOKEN }}" | docker login docker.cnb.cool -u ${{ secrets.CNB_USERNAME }} --password-stdin
+
+      - name: Push zip image
+        run: |
+          printf 'FROM scratch\nADD pad.zip /\n' > Dockerfile.zip
+          docker build -f Dockerfile.zip \
+            -t docker.cnb.cool/geeqee2025/buildingos.img/pad-zip:latest .
+          docker push docker.cnb.cool/geeqee2025/buildingos.img/pad-zip:latest
+
+      - name: Trigger buildingos.ai rebuild
+        env:
+          GH_TOKEN: ${{ secrets.BUILDINGOS_AI_PAT }}
+        run: |
+          gh workflow run build-web.yml --repo jimmyfreecoding/buildingos.ai --ref main
+          gh workflow run build-edge-frontend.yml --repo jimmyfreecoding/buildingos.ai --ref main
