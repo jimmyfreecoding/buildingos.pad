@@ -58,9 +58,13 @@ function doConnect(): void {
 
     if (subscribedTopics.size > 0) {
       const topicList = Array.from(subscribedTopics)
+      console.log('[MQTT] Re-subscribe topics:', topicList)
       client!.subscribe(topicList, (err) => {
         if (err) console.error('[MQTT] Re-subscribe error:', err)
+        else console.log('[MQTT] Re-subscribe OK:', topicList.join(', '))
       })
+    } else {
+      console.log('[MQTT] Connected but no topics registered yet')
     }
 
     connectListeners.forEach((fn) => fn())
@@ -78,12 +82,19 @@ function doConnect(): void {
   })
 
   client.on('message', (topic: string, payload: Buffer) => {
-    router.dispatch(topic, payload)
+    const raw = payload.toString()
+    const matched = router.dispatch(topic, payload)
+    console.log(`[MQTT] Message${matched ? '' : ' (NO HANDLER)'} ${topic}:`, raw.length > 300 ? `${raw.slice(0, 300)}…` : raw)
   })
 }
 
 export function connectMqtt(): void {
-  if (client || isMockMode()) return
+  if (client) return
+  if (isMockMode()) {
+    console.log('[MQTT] connectMqtt skipped — mock mode (no broker URL)')
+    return
+  }
+  console.log('[MQTT] connectMqtt — connecting to', getMqttConfig().url)
   doConnect()
 }
 
@@ -100,24 +111,38 @@ export function disconnectMqtt(): void {
 }
 
 export function subscribe(topic: string): void {
-  if (isMockMode()) return
-  if (subscribedTopics.has(topic)) return
+  if (isMockMode()) {
+    console.log('[MQTT] subscribe skipped (mock mode):', topic)
+    return
+  }
+  if (subscribedTopics.has(topic)) {
+    console.log('[MQTT] subscribe skipped (duplicate):', topic)
+    return
+  }
   subscribedTopics.add(topic)
 
   if (client && isConnected.value) {
     client.subscribe(topic, (err) => {
       if (err) console.error(`[MQTT] Subscribe error for ${topic}:`, err)
+      else console.log('[MQTT] Subscribe OK:', topic)
     })
+  } else {
+    console.log('[MQTT] subscribe queued (not connected yet):', topic)
   }
 }
 
 export function unsubscribe(topic: string): void {
-  if (!subscribedTopics.has(topic)) return
+  if (!subscribedTopics.has(topic)) {
+    console.log('[MQTT] unsubscribe skipped (not subscribed):', topic)
+    return
+  }
   subscribedTopics.delete(topic)
+  console.log('[MQTT] unsubscribe:', topic)
 
   if (client && isConnected.value) {
     client.unsubscribe(topic, undefined, (err) => {
       if (err) console.error(`[MQTT] Unsubscribe error for ${topic}:`, err)
+      else console.log('[MQTT] Unsubscribe OK:', topic)
     })
   }
 }
@@ -128,6 +153,7 @@ export function publish(topic: string, message: string | object): void {
     return
   }
   const payload = typeof message === 'string' ? message : JSON.stringify(message)
+  console.log('[MQTT] Publish:', topic, payload)
   client.publish(topic, payload, { qos: 0 }, (err) => {
     if (err) console.error(`[MQTT] Publish error for ${topic}:`, err)
   })
