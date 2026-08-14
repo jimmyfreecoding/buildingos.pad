@@ -20,8 +20,8 @@ const is1_1 = initData?.ratio === '1:1'
 export const AppConfig = {
   // Base Design Resolution
   design: {
-    width: is1_1 ? 480 : 1920,
-    height: is1_1 ? 480 : (is16_10 ? 1200 : 1080),
+    width: is1_1 ? 640 : 1920,
+    height: is1_1 ? 640 : (is16_10 ? 1200 : 1080),
   },
 
   // App Title

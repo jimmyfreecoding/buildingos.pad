@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { useAirSensorMqtt } from '@/composables/useAirSensorMqtt'
 import { useLightMqtt } from '@/composables/useLightMqtt'
 import { useWcSensorMqtt } from '@/composables/useWcSensorMqtt'
+import { useHumanSensorMqtt } from '@/composables/useHumanSensorMqtt'
 import { useBlindMqtt } from '@/composables/useBlindMqtt'
 import { useAcMqtt } from '@/composables/useAcMqtt'
 import { isConnected, subscribe, onMessage } from '@/utils/mqtt'
@@ -22,20 +23,44 @@ export function useZeekrData() {
   if (init) {
     mock.obj.value.floor = init.floorName || mock.obj.value.floor
     mock.obj.value.name = init.roomName || init.floorAreaName || mock.obj.value.name
+    mock.obj.value.spaceName = init.spaceName || mock.obj.value.spaceName
   }
 
   // --- Domain composables ---
   const { airQuality } = useAirSensorMqtt()
   const { lights: mqttLights, toggleLight: mqttToggleLight, setAll: mqttSetAll } = useLightMqtt()
   const { sensors: wcSensors } = useWcSensorMqtt()
+  const { sensors: humanSensors } = useHumanSensorMqtt()
   const { blind: mqttBlind, move: mqttBlindMove } = useBlindMqtt()
   const { ac: mqttAc, togglePower, setTemp, setMode: mqttSetMode, setSpeed } = useAcMqtt()
+
+  // --- Outdoor weather → background video (参考原项目 setInitBg) ---
+  const setInitBg = () => {
+    const today = mock.outside.value.today
+    if (!today) return
+    mock.bgParams.type = 'video'
+    let file = 'sun.mp4'
+    if (today === '多云') {
+      file = 'cloud.mp4'
+    } else if (today === '阴' || today.indexOf('雾') !== -1 || today.indexOf('霾') !== -1) {
+      file = 'overcast.mp4'
+    } else if (today === '晴') {
+      file = 'sun.mp4'
+    } else if (today.indexOf('雨') !== -1) {
+      file = 'rain.mp4'
+    } else if (today.indexOf('雪') !== -1) {
+      file = 'snow.mp4'
+    }
+    const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`
+    mock.bgParams.urls = [{ url: `${base}video/${file}` }]
+  }
 
   // --- Outdoor weather (MQTT updates mock ref in place) ---
   subscribe('/wallpad/outside')
   onMessage('/wallpad/outside', (payload: any) => {
     if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
       mock.outside.value = payload
+      setInitBg()
     }
   })
 
@@ -124,6 +149,33 @@ export function useZeekrData() {
     return mock.wcwomanStatusObj.value
   })
 
+  // --- 空间使用: pure subscription data (no mock fallback) ---
+  const roomoSensorObj = computed(() => {
+    const result: Record<string, { online: number[]; status: string[] }> = {}
+    for (const s of humanSensors.value) {
+      result[s.room] = { online: s.online, status: s.status }
+    }
+    return result
+  })
+
+  const meetingRooms = computed(() =>
+    humanSensors.value.map((s) => ({ code: s.room }))
+  )
+
+  const wcObjFrom = (room: string): WcStatusObj => {
+    const result: WcStatusObj = {}
+    const sensor = wcSensors.value?.find((s) => s.room === room)
+    if (sensor) {
+      for (let i = 0; i < sensor.total; i++) {
+        result[String(i + 1)] = i < sensor.occupied ? 1 : 0
+      }
+    }
+    return result
+  }
+
+  const wcmanStatusLive = computed(() => wcObjFrom('TMAN'))
+  const wcwomanStatusLive = computed(() => wcObjFrom('TWOMAN'))
+
   // --- Light actions (MQTT when connected, local state toggle when not) ---
   const toggleLight = (light: any) => {
     if (isConnected.value) {
@@ -187,8 +239,8 @@ export function useZeekrData() {
     outside: mock.outside,
     bgParams: mock.bgParams,
     air2: mock.air2,
-    roomoSensorObj: mock.roomoSensorObj,
-    meetingRooms: mock.meetingRooms,
+    roomoSensorObj,
+    meetingRooms,
     wcmanOtherFloorObj: mock.wcmanOtherFloorObj,
     wcmanOtherFloorObj2: mock.wcmanOtherFloorObj2,
     wcwomanOtherFloorObj: mock.wcwomanOtherFloorObj,
@@ -210,6 +262,8 @@ export function useZeekrData() {
     blind2: mock.blind2,
     wcmanStatusObj,
     wcwomanStatusObj,
+    wcmanStatusLive,
+    wcwomanStatusLive,
 
     // Actions
     toggleLight,

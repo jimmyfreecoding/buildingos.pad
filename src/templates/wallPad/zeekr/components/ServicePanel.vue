@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 
-const props = defineProps<{
+defineProps<{
   disabledSos?: boolean
-  obj?: any
 }>()
 
 const emit = defineEmits<{
@@ -11,26 +10,6 @@ const emit = defineEmits<{
 }>()
 
 const dialogSos = ref(false)
-
-const adminInfo = computed(() => {
-  const floor = props.obj?.floor || '42F'
-  if (['53F', '52F', '54F'].includes(floor)) {
-    return {
-      url: new URL('../assets/images/ceo_manage.jpg', import.meta.url).href,
-      phone: '13777586082',
-    }
-  }
-  return {
-    url: new URL('../assets/images/4floorManager.jpg', import.meta.url).href,
-    phone: '18667083298',
-  }
-})
-
-const floorQrCode = computed(() => {
-  const f = props.obj?.floor || '42F'
-  const c = props.obj?.code || 'A'
-  return new URL(`../assets/images/${f}_${c}.png`, import.meta.url).href
-})
 
 const setSos = () => {
   dialogSos.value = false
@@ -44,7 +23,7 @@ const bgService1 = new URL('../assets/images/bgService1.png', import.meta.url).h
 const bgService2 = new URL('../assets/images/bgService2.png', import.meta.url).href
 const bgService3 = new URL('../assets/images/bgService3.png', import.meta.url).href
 const bgService4 = new URL('../assets/images/bgService4.png', import.meta.url).href
-const qqj = new URL('../assets/images/qqj.jpg', import.meta.url).href
+const erweima = new URL('../assets/images/erweima.png', import.meta.url).href
 </script>
 
 <template>
@@ -56,7 +35,7 @@ const qqj = new URL('../assets/images/qqj.jpg', import.meta.url).href
         <!-- 报事报修 -->
         <div class="serice-item flex-row align-center">
           <div class="flex-row align-center" style="position:relative;z-index:2;width:100%;height:100%;">
-            <img class="erweima" :src="floorQrCode" />
+            <img class="erweima" :src="erweima" />
             <div class="txt-box">
               <div class="txt1">报事报修</div>
               <div class="txt2">Scan for admin service</div>
@@ -69,11 +48,11 @@ const qqj = new URL('../assets/images/qqj.jpg', import.meta.url).href
         <!-- 轻轻君 -->
         <div class="serice-item flex-row align-center">
           <div class="flex-row align-center" style="position:relative;z-index:2;width:100%;height:100%;">
-            <img class="erweima" :src="qqj" />
+            <img class="erweima" :src="erweima" />
             <div class="txt-box">
               <div class="txt1">轻轻君</div>
               <div class="txt2">administrative service</div>
-              <div class="txt3">行政服务咨询 Tel:18667081642</div>
+              <div class="txt3">行政服务咨询</div>
               <div class="txt4">请使用企业微信扫描二维码</div>
             </div>
             <img class="bgService" :src="bgService2" />
@@ -85,11 +64,11 @@ const qqj = new URL('../assets/images/qqj.jpg', import.meta.url).href
         <!-- 楼层管家 -->
         <div class="serice-item flex-row align-center">
           <div class="flex-row align-center" style="position:relative;z-index:2;width:100%;height:100%;">
-            <img class="erweima" :src="adminInfo.url" />
+            <img class="erweima" :src="erweima" />
             <div class="txt-box">
               <div class="txt1">楼层管家</div>
               <div class="txt2">floor butler</div>
-              <div class="txt3">有问题直接找楼长 Tel:{{ adminInfo.phone }}</div>
+              <div class="txt3">有问题直接找楼长</div>
               <div class="txt4">请使用企业微信扫描二维码</div>
             </div>
             <img class="bgService" :src="bgService2" />

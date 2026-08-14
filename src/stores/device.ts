@@ -6,6 +6,7 @@ import type {
   AcState,
   AirSensorData,
   WcSensorData,
+  HumanSensorData,
   BlindState,
   FreshAirState,
   SocketState,
@@ -28,6 +29,7 @@ export type DeviceDomain =
   | 'ac'
   | 'airsensor'
   | 'wcsensor'
+  | 'humansensor'
   | 'blind'
   | 'freshair'
   | 'socket'
@@ -62,6 +64,8 @@ export const useDeviceStore = defineStore('device', () => {
         lightMap.delete(key)
         acMap.delete(key)
         airSensorMap.delete(key)
+        wcSensorMap.delete(key)
+        humanSensorMap.delete(key)
         blindMap.delete(key)
         freshAirMap.delete(key)
       }
@@ -77,6 +81,7 @@ export const useDeviceStore = defineStore('device', () => {
   const acMap = reactive<Map<string, AcState>>(new Map())
   const airSensorMap = reactive<Map<string, AirSensorData>>(new Map())
   const wcSensorMap = reactive<Map<string, WcSensorData[]>>(new Map())
+  const humanSensorMap = reactive<Map<string, HumanSensorData[]>>(new Map())
   const blindMap = reactive<Map<string, BlindState>>(new Map())
   const freshAirMap = reactive<Map<string, FreshAirState>>(new Map())
   const socketMap = reactive<Map<string, SocketState[]>>(new Map())
@@ -113,6 +118,13 @@ export const useDeviceStore = defineStore('device', () => {
       wcSensorMap.set(key, [])
     }
     return computed(() => wcSensorMap.get(key)!)
+  }
+
+  function getHumanSensors(key: string) {
+    if (!humanSensorMap.has(key)) {
+      humanSensorMap.set(key, [])
+    }
+    return computed(() => humanSensorMap.get(key)!)
   }
 
   function getBlind(key: string) {
@@ -167,6 +179,10 @@ export const useDeviceStore = defineStore('device', () => {
     wcSensorMap.set(key, data)
   }
 
+  function applyHumanSensors(key: string, data: HumanSensorData[]): void {
+    humanSensorMap.set(key, data)
+  }
+
   function applyBlindState(key: string, data: Partial<BlindState>): void {
     const current = blindMap.get(key) || { ...DEFAULT_BLIND }
     blindMap.set(key, { ...current, ...data })
@@ -195,6 +211,7 @@ export const useDeviceStore = defineStore('device', () => {
     getAc,
     getAirSensor,
     getWcSensors,
+    getHumanSensors,
     getBlind,
     getFreshAir,
     getSockets,
@@ -203,6 +220,7 @@ export const useDeviceStore = defineStore('device', () => {
     applyAcState,
     applyAirSensor,
     applyWcSensor,
+    applyHumanSensors,
     applyBlindState,
     applyFreshAirState,
     applySockets,

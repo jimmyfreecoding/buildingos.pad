@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>switchPad · Smart 4寸开关屏</title>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500&display=swap">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Archivo,"Noto Sans SC","PingFang SC",system-ui,sans-serif}
+  #app{width:480px;height:480px}
+  .frame{position:relative;width:480px;height:480px;overflow:hidden;background:#0a0a0b;display:flex;flex-direction:column;box-shadow:0 30px 70px rgba(0,0,0,.5);-webkit-user-select:none;user-select:none;touch-action:none}
+  .bg{position:absolute;inset:0;background-size:cover;background-position:center;transition:opacity .5s}
+  .scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.4),rgba(0,0,0,.1) 40%,rgba(0,0,0,.5))}
+  .hdr{position:relative;display:flex;align-items:center;justify-content:space-between;padding:16px 26px 0}
+  .brand{font:700 13px/1 Archivo,sans-serif;letter-spacing:.24em;color:rgba(255,255,255,.85)}
+  .clock{font:400 15px/1 Archivo,sans-serif;color:rgba(255,255,255,.9);font-variant-numeric:tabular-nums}
+  .dot-live{width:7px;height:7px;border-radius:50%;background:#ec3013;box-shadow:0 0 10px #ec3013}
+  .viewport{position:relative;flex:1;overflow:hidden}
+  .track{display:flex;width:1440px;height:100%;transition:transform .42s cubic-bezier(.4,0,.2,1)}
+  .scr{width:480px;box-sizing:border-box;padding:16px 26px 0;display:flex;flex-direction:column}
+  .room{display:flex;align-items:baseline;gap:12px}
+  .room .num{font:600 72px/1 Archivo,sans-serif;color:#fff;letter-spacing:-.02em}
+  .room .sub{font:400 13px/1 'Noto Sans SC',sans-serif;color:rgba(255,255,255,.7)}
+  .room-sm .num{font:600 64px/1 Archivo,sans-serif;color:#fff;letter-spacing:-.02em}
+  .tiles{margin-top:auto;padding-bottom:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(82px,1fr));gap:12px}
+  .tile{all:unset;box-sizing:border-box;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;border-radius:26px;backdrop-filter:blur(14px);background:rgba(255,255,255,.13);color:rgba(255,255,255,.78);font:400 15px/1 'Noto Sans SC',sans-serif;cursor:pointer;transition:all .24s}
+  .tile.on{background:rgba(255,255,255,.94);color:#131313}
+  .unit-tabs{display:flex;gap:6px}
+  .unit-tab{all:unset;padding:6px 13px;border-radius:16px;font:400 12px/1 'Noto Sans SC',sans-serif;cursor:pointer;transition:all .2s;color:rgba(255,255,255,.7)}
+  .unit-tab.on{background:rgba(255,255,255,.92);color:#131313}
+  .temp-row{margin-top:16px;margin-bottom:16px;flex:1;min-height:0;display:flex;align-items:stretch;justify-content:center;gap:14px}
+  .temp-box{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .temp-num{display:flex;align-items:flex-start;gap:3px;color:#fff}
+  .temp-num .v{font:600 104px/.8 Archivo,sans-serif;letter-spacing:-.045em;font-variant-numeric:tabular-nums}
+  .temp-num .u{font:400 28px/1 Archivo,sans-serif;padding-top:10px}
+  .mode-row{margin-top:12px;display:flex;align-items:center;gap:9px}
+  .mode-dot{width:8px;height:8px;border-radius:50%;transition:background .3s;background:rgba(255,255,255,.3)}
+  .mode-label{font:400 13px/1 'Noto Sans SC',sans-serif;letter-spacing:.22em;color:#fff}
+  .track-v{flex:none;position:relative;width:56px;border-radius:28px;overflow:hidden;cursor:pointer;backdrop-filter:blur(14px);background:rgba(255,255,255,.13)}
+  .track-v .fill{position:absolute;left:0;right:0;bottom:0;background:rgba(255,255,255,.9);transition:height .12s}
+  .ac-actions{margin-top:0;padding-bottom:18px;display:flex;gap:9px}
+  .act-btn{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;height:58px;border-radius:29px;backdrop-filter:blur(14px);background:rgba(255,255,255,.13);color:rgba(255,255,255,.78);font:400 15px/1 'Noto Sans SC',sans-serif;cursor:pointer;transition:all .24s}
+  .act-btn.on{background:rgba(255,255,255,.94);color:#131313}
+  .dots{position:relative;display:flex;align-items:center;justify-content:center;gap:7px;height:26px}
+  .dotbtn{all:unset;height:5px;border-radius:3px;cursor:pointer;transition:all .3s}
+  .dotbtn.on{width:18px;background:rgba(255,255,255,.92)}
+  .dotbtn.off{width:5px;background:rgba(255,255,255,.35)}
+  .bgbtn{all:unset;margin-top:14px;align-self:flex-start;padding:6px 12px;border:1.5px solid rgba(255,255,255,.3);color:#fff;font:400 11px/1 'Noto Sans SC',sans-serif;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const { createApp } = Vue;
+
+const BGS = [
+  "background-image:radial-gradient(circle at 32% 46%, #ff4a1a 0%, #b81806 26%, #3d0703 46%, #0b0708 72%)",
+  "background-image:linear-gradient(155deg,#2a2c30 0%,#141517 55%,#0a0a0b 100%)",
+  "background-image:radial-gradient(circle at 70% 25%, #1d3a5c 0%, #10203a 40%, #07090f 78%)",
+  "background-image:linear-gradient(180deg,#111 0%,#000 100%)"
+];
+const MODES = ["制冷", "制热", "送风", "除湿"];
+const MC = ["74,168,255", "236,48,19", "222,222,222", "47,191,160"];
+const FANS = ["自动", "1", "2", "3"];
+
+createApp({
+  data() {
+    return {
+      clock: "",
+      s: 0,
+      bg: 0,
+      lights: [true, false, false],
+      unit: 0,
+      ac: [{ on: true, t: 24, m: 0, f: 0 }, { on: false, t: 26, m: 2, f: 1 }],
+      scene: 0,
+      _downX: 0
+    };
+  },
+  computed: {
+    u() { return this.ac[this.unit]; },
+    tpct() { return (((this.u.t - 16) / 14) * 100).toFixed(1) + "%"; },
+    mdt() { return MODES[this.u.m]; },
+    fnt() { return FANS[this.u.f]; },
+    modeColor() { return MC[this.u.m]; }
+  },
+  methods: {
+    tick() {
+      const d = new Date();
+      this.clock = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    },
+    toggleLight(i) { this.lights[i] = !this.lights[i]; },
+    setUnit(i) { this.unit = i; },
+    setScene(i) { this.scene = i; },
+    cycleBg() { this.bg = (this.bg + 1) % BGS.length; },
+    goTo(i) { this.s = i; },
+    onDown(e) { this._downX = e.clientX; },
+    onUp(e) {
+      const dx = e.clientX - this._downX;
+      if (Math.abs(dx) > 40) this.s = Math.min(2, Math.max(0, this.s + (dx < 0 ? 1 : -1)));
+    },
+    slideV(e) {
+      const r = e.currentTarget.getBoundingClientRect();
+      const p = Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height));
+      this.u.t = Math.round(16 + p * 14);
+    },
+    togglePower() { this.u.on = !this.u.on; },
+    cycleMode() { this.u.m = (this.u.m + 1) % 4; },
+    cycleFan() { this.u.f = (this.u.f + 1) % 4; },
+    lightBg() { return BGS[this.bg]; }
+  },
+  mounted() {
+    this.tick();
+    this._timer = setInterval(this.tick, 15000);
+  },
+  beforeUnmount() { clearInterval(this._timer); },
+  template: `
+  <div class="frame" @pointerdown="onDown" @pointerup="onUp">
+    <div class="bg" :style="lightBg()"></div>
+    <div class="scrim"></div>
+    <div class="hdr">
+      <span class="brand">smart</span>
+      <span class="clock">{{ clock }}</span>
+      <span class="dot-live"></span>
+    </div>
+    <div class="viewport">
+      <div class="track" :style="{ transform: 'translateX(' + (-480 * s) + 'px)' }">
+
+        <!-- 照明 -->
+        <div class="scr">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div class="room"><span class="num">301</span><span class="sub">总经理室 · 照明</span></div>
+            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="1.2" stroke-linecap="round"><path d="M12 2v6"/><path d="M4 14a8 8 0 0 1 16 0z"/><path d="M12 17v4M8 17l-2.5 3M16 17l2.5 3"/></svg>
+          </div>
+          <div class="tiles">
+            <button class="tile" :class="{on: lights[0]}" @click="toggleLight(0)">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a6 6 0 0 0-4 10.5c.7.6 1 1.4 1 2.5h6c0-1.1.3-1.9 1-2.5A6 6 0 0 0 12 2z"/></svg>
+              <span>筒灯</span>
+            </button>
+            <button class="tile" :class="{on: lights[1]}" @click="toggleLight(1)">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a6 6 0 0 0-4 10.5c.7.6 1 1.4 1 2.5h6c0-1.1.3-1.9 1-2.5A6 6 0 0 0 12 2z"/></svg>
+              <span>灯带</span>
+            </button>
+            <button class="tile" :class="{on: lights[2]}" @click="toggleLight(2)">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a6 6 0 0 0-4 10.5c.7.6 1 1.4 1 2.5h6c0-1.1.3-1.9 1-2.5A6 6 0 0 0 12 2z"/></svg>
+              <span>射灯</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 空调 -->
+        <div class="scr">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div class="room room-sm"><span class="num">301</span><span class="sub">总经理室 · 空调</span></div>
+            <div class="unit-tabs">
+              <button class="unit-tab" :class="{on: unit===0}" @click="setUnit(0)">主机</button>
+              <button class="unit-tab" :class="{on: unit===1}" @click="setUnit(1)">新风</button>
+            </div>
+          </div>
+          <div class="temp-row">
+            <div class="temp-box">
+              <div class="temp-num"><span class="v">{{ u.t }}</span><span class="u">°C</span></div>
+              <div class="mode-row">
+                <span class="mode-dot" :style="u.on ? {background:'rgb('+modeColor+')', boxShadow:'0 0 10px rgba('+modeColor+',.9)'} : {}"></span>
+                <span class="mode-label">{{ mdt }}</span>
+              </div>
+            </div>
+            <div class="track-v" @pointerdown="slideV">
+              <div class="fill" :style="{height: tpct}"></div>
+            </div>
+          </div>
+          <div class="ac-actions">
+            <button class="act-btn" style="flex:1" :class="{on:u.on}" @click="togglePower">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 3v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>
+            </button>
+            <button class="act-btn" style="flex:1.4"
+              :class="{on:u.on}"
+              :style="u.on ? {background:'rgb('+modeColor+')', color:(u.m===2?'#131313':'#fff')} : {}"
+              @click="cycleMode">{{ mdt }}</button>
+            <button class="act-btn" style="flex:1.4" :class="{on:u.on}" @click="cycleFan">风速 {{ fnt }}</button>
+          </div>
+        </div>
+
+        <!-- 场景 -->
+        <div class="scr">
+          <div class="room room-sm"><span class="num">301</span><span class="sub">总经理室 · 场景</span></div>
+          <div class="tiles">
+            <button class="tile" :class="{on: scene===0}" @click="setScene(0)">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 20h8M12 18v2"/></svg>
+              <span>会议</span>
+            </button>
+            <button class="tile" :class="{on: scene===1}" @click="setScene(1)">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg>
+              <span>演示</span>
+            </button>
+            <button class="tile" :class="{on: scene===2}" @click="setScene(2)">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+              <span>释放</span>
+            </button>
+            <button class="tile" :class="{on: scene===3}" @click="setScene(3)">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
+              <span>离开</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="dots">
+      <button v-for="i in 3" :key="i" class="dotbtn" :class="s===i-1 ? 'on' : 'off'" @click="goTo(i-1)"></button>
+    </div>
+    <button class="bgbtn" @click="cycleBg">切换背景 →</button>
+  </div>
+  `
+}).mount('#app');
+</script>
+</body>
+</html>

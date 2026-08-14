@@ -1,10 +1,17 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
 const props = defineProps<{
   roomoSensorObj: any
   meetingRooms: any[]
   wcmanStatusObj: any
   wcwomanStatusObj: any
 }>()
+
+const hasWcMan = computed(() => Object.keys(props.wcmanStatusObj || {}).length > 0)
+const hasWcWoman = computed(() => Object.keys(props.wcwomanStatusObj || {}).length > 0)
+const wcmanText = computed(() => hasWcMan.value ? showText(props.wcmanStatusObj) : '暂未配置')
+const wcwomanText = computed(() => hasWcWoman.value ? showText(props.wcwomanStatusObj) : '暂未配置')
 
 const showStatus = (code: string) => {
   let returnStyle = ''
@@ -62,6 +69,7 @@ const showText = (cwobj: any) => {
             <div class="txt">{{ showStatus(item.code)[1] }}</div>
           </div>
         </div>
+        <div v-if="!meetingRooms.length" class="empty-txt">暂未配置</div>
       </div>
     </div>
     <div class="index-title-box flex-row align-center" style="margin-top:40px">
@@ -69,16 +77,16 @@ const showText = (cwobj: any) => {
     </div>
     <div class="content">
       <div class="rooms flex-row align-center justify-around">
-        <div class="rooms-item flex-row align-center justify-between" :class="[showText(wcmanStatusObj) === '无人' ? 'bg-black' : '']">
+        <div class="rooms-item flex-row align-center justify-between" :class="[wcmanText === '无人' ? 'bg-black' : '']">
           <div style="width:100%;position:relative;z-index:2" class="padding20 flex-row align-center justify-between">
             <div class="txt">男卫</div>
-            <div class="txt">{{ showText(wcmanStatusObj) }}</div>
+            <div class="txt">{{ wcmanText }}</div>
           </div>
         </div>
-        <div class="rooms-item flex-row align-center justify-between" :class="[showText(wcwomanStatusObj) === '无人' ? 'bg-black' : '']">
+        <div class="rooms-item flex-row align-center justify-between" :class="[wcwomanText === '无人' ? 'bg-black' : '']">
           <div style="width:100%;position:relative;z-index:2" class="padding20 flex-row align-center justify-between">
             <div class="txt">女卫</div>
-            <div class="txt">{{ showText(wcwomanStatusObj) }}</div>
+            <div class="txt">{{ wcwomanText }}</div>
           </div>
         </div>
       </div>
@@ -122,6 +130,16 @@ const showText = (cwobj: any) => {
     .rooms {
       gap: 24px;
       flex-wrap: wrap;
+      .empty-txt {
+        width: 100%;
+        font-size: 28px;
+        color: #fff;
+        opacity: 0.4;
+        text-align: center;
+        padding: 20px 0;
+        position: relative;
+        z-index: 2;
+      }
       .rooms-item {
         font-size: 32px;
         height: 88px;

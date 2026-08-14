@@ -63,7 +63,7 @@ const ratios = [
   { label: '16:9 (1920x1080)', value: '16:9' },
   { label: '16:10 (1920x1200)', value: '16:10' },
   { label: '16:9 (4K - 3840x2160)', value: '4k' },
-  { label: '1:1 (480x480)', value: '1:1' },
+  { label: '1:1 (640x640)', value: '1:1' },
 ]
 
 const typeOptions = computed(() => {

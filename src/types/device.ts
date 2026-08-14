@@ -67,6 +67,13 @@ export interface WcSensorData {
   total: number
 }
 
+// --- Human Presence Sensor (meeting rooms) ---
+export interface HumanSensorData {
+  room: string
+  online: number[]
+  status: string[]
+}
+
 // --- Blinds / Curtains ---
 export interface BlindDevice {
   id: string
@@ -150,6 +157,7 @@ export type DevicePayload =
   | { type: 'ac'; data: Partial<AcState> }
   | { type: 'airsensor'; data: Partial<AirSensorData> }
   | { type: 'wcsensor'; data: WcSensorData }
+  | { type: 'humansensor'; data: HumanSensorData }
   | { type: 'blind'; data: Partial<BlindState> }
   | { type: 'freshair'; data: Partial<FreshAirState> }
   | { type: 'socket'; data: Partial<SocketState> }

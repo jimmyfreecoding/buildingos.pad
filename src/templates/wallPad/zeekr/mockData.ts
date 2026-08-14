@@ -12,6 +12,7 @@ export const obj = ref({
   floorAreaCode: 'GXBGQ2',
   areaCode: 'ZSDS',
   spaceCode: 'ZP',
+  spaceName: '',
 })
 
 // ====== 午休模式 ======
@@ -91,25 +92,6 @@ export const acobj = ref([])
 export const blind = ref([])
 export const blind2 = ref([])
 export const air2 = ref([])
-
-// ====== 会议室/空间使用 ======
-export const meetingRooms = ref([
-  { code: 'M4201' },
-  { code: 'M4202' },
-  { code: 'M4203' },
-  { code: 'M4205' },
-  { code: 'M4206' },
-  { code: 'M4207' },
-])
-
-export const roomoSensorObj = ref({
-  'M4201': { online: [1], status: 'busy' },
-  'M4202': { online: [1], status: '' },
-  'M4203': { online: [1], status: 'busy' },
-  'M4205': { online: [1], status: '' },
-  'M4206': { online: [1], status: '' },
-  'M4207': { online: [1], status: 'busy' },
-})
 
 // ====== 卫生间占位 ======
 export const wcmanStatusObj = ref<WcStatusObj>({

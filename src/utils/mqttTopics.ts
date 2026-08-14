@@ -34,6 +34,10 @@ export const topics = {
   wcSensor: (c: SpaceContext, room: string) =>
     `${IOT_STATUS}/wcsensor/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${room}/#`,
 
+  // --- Human Presence Sensor (meeting rooms, per floor) ---
+  humanSensorStatus: (c: SpaceContext) =>
+    `${IOT_STATUS}/humensensor/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/#`,
+
   // --- Blinds / Curtains ---
   blindStatus: (c: SpaceContext) =>
     `${IOT_STATUS}/blind/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${c.deviceCode}/#`,

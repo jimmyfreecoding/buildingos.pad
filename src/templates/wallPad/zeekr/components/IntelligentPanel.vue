@@ -2,7 +2,7 @@
 import iconZn1 from '../assets/images/iconZn1.png'
 import iconZn2 from '../assets/images/iconZn2.png'
 import iconZnLine from '../assets/images/iconZnLine.png'
-import bgZhineng1 from '../assets/images/bgZhineng1.png'
+import bgZhineng1 from '../assets/images/dalou.png'
 import bgZhineng from '../assets/images/bgZhineng.png'
 import iconZnLine1 from '../assets/images/iconZnLine1.png'
 import iconZnLine2 from '../assets/images/iconZnLine2.png'
@@ -14,6 +14,10 @@ import iconZn02 from '../assets/images/iconZn02.png'
 import iconZn03 from '../assets/images/iconZn03.png'
 import iconZn04 from '../assets/images/iconZn04.png'
 import iconZn05 from '../assets/images/iconZn05.png'
+
+defineProps<{
+  spaceName: string
+}>()
 
 const activities = [
   { content: '智能化等级Lv.5', timestamp: '自我学习控制', size: 'large', icon: iconZn2 },
@@ -28,7 +32,7 @@ const activities = [
   <div class="left-box-box">
     <img class="bg-liudong" :src="bgZhineng" />
     <div class="index-title-box flex-row align-center">
-      <div class="txt">杭州极氪大厦</div>
+      <div class="txt">{{ spaceName ? spaceName + ' · ' : '' }}智能控制</div>
     </div>
     <div class="intell-content flex-row justify-between">
       <div class="time-box">
@@ -51,7 +55,7 @@ const activities = [
                 <div class="line-left"></div>
                 <div class="ta-content">
                   <div class="txt1">AI算法控制</div>
-                  <div class="txt2">极氪智慧楼宇按照智能化L5级标准建设，通过物联网数据中台可以完成30年的超长存储，通过数据进行机器学习，不断优化AI算法来完成L5级楼宇智能。</div>
+                  <div class="txt2">智慧楼宇按照智能化L5级标准建设，通过物联网数据中台可以完成30年的超长存储，通过数据进行机器学习，不断优化AI算法来完成L5级楼宇智能。</div>
                 </div>
               </div>
             </div>

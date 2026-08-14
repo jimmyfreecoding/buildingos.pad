@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import VScaleScreen from 'v-scale-screen'
 import { useZeekrData } from './useZeekrData'
@@ -8,7 +8,7 @@ const {
   obj, isWuxiui, sosAnimate, sosAnimateDia, disabledSos,
   inside, outside, bgParams, lights, lightobj, acobj,
   blind, blind2, air2, roomoSensorObj, meetingRooms,
-  wcmanStatusObj, wcwomanStatusObj, wcmanOtherFloorObj, wcmanOtherFloorObj2,
+  wcmanStatusObj, wcwomanStatusObj, wcmanStatusLive, wcwomanStatusLive, wcmanOtherFloorObj, wcmanOtherFloorObj2,
   wcwomanOtherFloorObj, ceowcStatusObj, ceowcStatusObj2,
   baojie, mapData, otherFloor, otherFloor2, airsensorMap,
   toggleLight, setAllLights, blindMove, acTogglePower, acSetTempAbsolute, acSetSpeedStr, acSetMode,
@@ -34,6 +34,7 @@ import ServiceGaojing from './components/ServiceGaojing.vue'
 import HuanjingPanel from './components/HuanjingPanel.vue'
 import ZhaomingPanel from './components/ZhaomingPanel.vue'
 import RoomUsePanel from './components/RoomUsePanel.vue'
+import BgVideo from './components/BgVideo.vue'
 import IntelligentPanel from './components/IntelligentPanel.vue'
 import FloorMap from './components/FloorMap.vue'
 
@@ -121,6 +122,46 @@ const sosConfirm = () => { sosAnimate.value = false; sosAnimateDia.value = false
 const toMainBox = () => { isWuxiui.value = false }
 const handleCleanRecord = () => { loading.value = true; setTimeout(() => { loading.value = false; isOk.value = true }, 1500) }
 const navFun = (idx: number) => { if (idx === -1) { drawer.value = false } else { tabIndex.value = idx } }
+
+// ====== 二级页面 1 分钟无触控自动返回首页 ======
+const IDLE_TIMEOUT_MS = 60 * 1000
+let idleTimer: ReturnType<typeof setTimeout> | null = null
+
+const clearIdleTimer = () => {
+  if (idleTimer) { clearTimeout(idleTimer); idleTimer = null }
+}
+
+const resetIdleTimer = () => {
+  if (!drawer.value) return
+  clearIdleTimer()
+  idleTimer = setTimeout(() => {
+    idleTimer = null
+    drawer.value = false
+    tabIndex.value = 0
+  }, IDLE_TIMEOUT_MS)
+}
+
+const onUserActivity = () => resetIdleTimer()
+
+watch(drawer, (open) => {
+  clearIdleTimer()
+  if (open) resetIdleTimer()
+})
+
+onMounted(() => {
+  window.addEventListener('touchstart', onUserActivity)
+  window.addEventListener('pointerdown', onUserActivity)
+  window.addEventListener('mousedown', onUserActivity)
+  window.addEventListener('keydown', onUserActivity)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('touchstart', onUserActivity)
+  window.removeEventListener('pointerdown', onUserActivity)
+  window.removeEventListener('mousedown', onUserActivity)
+  window.removeEventListener('keydown', onUserActivity)
+  clearIdleTimer()
+})
 const serviceGaojingFun = () => { sosConfirm() }
 const syncLight = (light: any) => { currentLight.value = light; toggleLight(light) }
 const syncAllLight = (on: boolean) => { setAllLights(on) }
@@ -131,14 +172,6 @@ const syncAcSpeed = (speed: string) => { console.log('[index] syncAcSpeed:', spe
 const syncAcMode = (mode: string) => { console.log('[index] syncAcMode:', mode); acSetMode(mode) }
 const syncBlind = (dir: string) => { blindMove(dir as 'up' | 'down' | 'pause') }
 const clickEven = () => {}
-
-// LeftNav dynamic width matching original
-const leftNavWidth = computed(() => {
-  if (obj.value.floor === '54F') {
-    return [0, 3, 4].includes(tabIndex.value) ? '220px' : '1220px'
-  }
-  return [0, 4].includes(tabIndex.value) ? '220px' : '1220px'
-})
 
 // Asset URLs
 const iconWen = new URL('./assets/images/wen.png', import.meta.url).href
@@ -152,11 +185,11 @@ const bgWC = new URL('./assets/images/bgWC.png', import.meta.url).href
 const wuxiuBg = new URL('./assets/images/wuxiuBgNew.jpg', import.meta.url).href
 const wuxiu = new URL('./assets/images/wuxiuNew.png', import.meta.url).href
 const bg1 = new URL('./assets/images/bgNew1.jpg', import.meta.url).href
-const logoUrl = new URL('./assets/images/logo.png', import.meta.url).href
+const logoUrl = new URL('./assets/images/geely.png', import.meta.url).href
 const bottomBg = new URL('./assets/images/bottomBg.png', import.meta.url).href
 const jingBg = new URL('./assets/images/jingBg.png', import.meta.url).href
 const jingling = new URL('./assets/images/jingling.png', import.meta.url).href
-const map1 = new URL('./assets/images/map1.png', import.meta.url).href
+const floorImg = new URL('./assets/images/floor.jpg', import.meta.url).href
 </script>
 
 <template>
@@ -171,6 +204,7 @@ const map1 = new URL('./assets/images/map1.png', import.meta.url).href
         <div v-if="sosAnimate" class="sos-animate"></div>
 
         <img v-if="bgParams.type === 'image'" :src="bg1" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;" />
+        <BgVideo v-if="bgParams.type === 'video'" style="position:absolute;left:0;top:0;height:100%;width:100%;" :bg-urls="bgParams.urls"></BgVideo>
         <div class="bg-shdow"></div>
 
         <!-- 顶部栏 -->
@@ -324,14 +358,14 @@ const map1 = new URL('./assets/images/map1.png', import.meta.url).href
           <div class="index-box flex-row">
             <div v-if="sosAnimateDia" class="sos-animate"></div>
             <LeftNav
-              :style="`width:${leftNavWidth};z-index:3`"
+              style="width:220px;flex:none;z-index:3"
               :active="tabIndex"
               :floor="obj.floor"
               @clickChild="navFun"
             ></LeftNav>
 
-            <div style="width:calc(100% - 220px);height:100%;background:#090909;z-index:3;position:relative;left:-1px;">
-              <ServicePanel v-if="tabIndex === 0 && !sosAnimateDia" :disabledSos="disabledSos" :obj="obj" @childFun="openSos"></ServicePanel>
+            <div style="height:100%;background:#090909;z-index:3;position:relative;left:-1px;">
+              <ServicePanel v-if="tabIndex === 0 && !sosAnimateDia" :disabledSos="disabledSos" @childFun="openSos"></ServicePanel>
               <ServiceGaojing v-if="tabIndex === 0 && sosAnimateDia"></ServiceGaojing>
               <HuanjingPanel v-if="tabIndex === 1" :inside="inside" :outside="outside" :obj="obj"></HuanjingPanel>
               <ZhaomingPanel
@@ -341,16 +375,16 @@ const map1 = new URL('./assets/images/map1.png', import.meta.url).href
                 @syncLight="syncLight" @syncAllLight="syncAllLight" @syncLightStatus="syncLightStatus"
                 @syncAcPower="syncAcPower" @syncAcTemp="syncAcTemp" @syncAcMode="syncAcMode" @syncAcSpeed="syncAcSpeed" @syncBlind="syncBlind"
               ></ZhaomingPanel>
-              <RoomUsePanel v-if="tabIndex === 3 && obj.floor !== '54F'" :roomoSensorObj="roomoSensorObj" :meetingRooms="meetingRooms" :wcmanStatusObj="wcmanStatusObj" :wcwomanStatusObj="wcwomanStatusObj"></RoomUsePanel>
-              <IntelligentPanel v-if="obj.floor === '54F' ? tabIndex === 3 : tabIndex === 4"></IntelligentPanel>
+              <RoomUsePanel v-if="tabIndex === 3 && obj.floor !== '54F'" :roomoSensorObj="roomoSensorObj" :meetingRooms="meetingRooms" :wcmanStatusObj="wcmanStatusLive" :wcwomanStatusObj="wcwomanStatusLive"></RoomUsePanel>
+              <IntelligentPanel v-if="obj.floor === '54F' ? tabIndex === 3 : tabIndex === 4" :space-name="obj.spaceName"></IntelligentPanel>
             </div>
 
             <!-- 地图区 -->
             <div v-if="![1,2,3].includes(tabIndex)" style="flex:1;background:#161616;z-index:2;position:relative;left:-2px;">
               <FloorMap :tabIndex="tabIndex" :lights="lights" :currentLight="currentLight" :currentLightStatus="currentLightStatus" @clickChild="clickEven" />
             </div>
-            <div v-if="[1,2,3].includes(tabIndex)" style="width:800px;height:100%;background:#161616;z-index:2;flex:1;position:relative;left:-2px;display:flex;align-items:center;justify-content:center;">
-              <img :src="map1" style="width:800px;background:#090909;flex:1;position:relative;z-index:2;" />
+            <div v-if="[1,2,3].includes(tabIndex)" style="width:800px;height:100%;background:#161616;z-index:2;flex:none;position:relative;left:-2px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+              <img :src="floorImg" style="max-width:100%;max-height:100%;object-fit:contain;display:block;" />
             </div>
           </div>
         </el-drawer>
