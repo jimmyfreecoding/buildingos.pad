@@ -257,6 +257,8 @@ location /pad/ {
 - `VITE_MQTT_USERNAME` / `VITE_MQTT_PASSWORD`：与该站点 EMQX 用户库一致（edge 默认 `buildingos` / `buildingos_edge_2024`，见 `emqx-bootstrap-users.csv`）
 - `VITE_APP_BASE_URL`：`/api`，经 edge nginx 反代到 edge 后端，无需修改
 
+> **无需赋权**：edge-frontend 镜像内 nginx worker 以 root 运行（Dockerfile.frontend 已处理），宿主机 git pull 生成的文件权限不影响读取，不产生手工 chmod 步骤。
+
 当前站点（edge 主机 10.80.142.27）配置示例：
 
 ```js
