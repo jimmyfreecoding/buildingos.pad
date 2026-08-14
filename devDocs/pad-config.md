@@ -255,7 +255,7 @@ location /pad/ {
 
 - `VITE_MQTT_URL`：指向该站点 EMQX WebSocket，格式 `ws://<edge-ip>:8083/mqtt`（edge EMQX 默认 ws 监听 8083）
 - `VITE_MQTT_USERNAME` / `VITE_MQTT_PASSWORD`：与该站点 EMQX 用户库一致（edge 默认 `buildingos` / `buildingos_edge_2024`，见 `emqx-bootstrap-users.csv`）
-- `VITE_APP_BASE_URL`：`/api`，经 edge nginx 反代到 edge 后端，无需修改
+- `VITE_APP_BASE_URL`：指向该站点 HTTP 接口（Node-RED 1880 端口），格式 `http://<edge-ip>:1880`
 
 > **无需赋权**：edge-frontend 镜像内 nginx worker 以 root 运行（Dockerfile.frontend 已处理），宿主机 git pull 生成的文件权限不影响读取，不产生手工 chmod 步骤。
 
@@ -264,7 +264,7 @@ location /pad/ {
 ```js
 // edge/docker/configs/pad-config.js
 window.config = {
-  VITE_APP_BASE_URL: "/api",
+  VITE_APP_BASE_URL: "http://10.80.142.27:1880",
   VITE_MQTT_URL: "ws://10.80.142.27:8083/mqtt",
   VITE_MQTT_USERNAME: "buildingos",
   VITE_MQTT_PASSWORD: "buildingos_edge_2024",
