@@ -247,22 +247,38 @@ location /pad/ {
 - ./configs/pad-config.js:/usr/share/nginx/html/pad/config.js:ro
 ```
 
+### pad-config.js 维护方式
+
+`edge/docker/configs/pad-config.js` **随代码仓库提交**（与统一部署模式不同），edge 端 `git pull` 后经 bind-mount 直接生效，不走 deploy 脚本传输。
+
+**部署新边缘站点前必须手动修改该文件**，再提交代码：
+
+- `VITE_MQTT_URL`：指向该站点 EMQX WebSocket，格式 `ws://<edge-ip>:8083/mqtt`（edge EMQX 默认 ws 监听 8083）
+- `VITE_MQTT_USERNAME` / `VITE_MQTT_PASSWORD`：与该站点 EMQX 用户库一致（edge 默认 `buildingos` / `buildingos_edge_2024`，见 `emqx-bootstrap-users.csv`）
+- `VITE_APP_BASE_URL`：`/api`，经 edge nginx 反代到 edge 后端，无需修改
+
+当前站点（edge 主机 10.80.142.27）配置示例：
+
+```js
+// edge/docker/configs/pad-config.js
+window.config = {
+  VITE_APP_BASE_URL: "/api",
+  VITE_MQTT_URL: "ws://10.80.142.27:8083/mqtt",
+  VITE_MQTT_USERNAME: "buildingos",
+  VITE_MQTT_PASSWORD: "buildingos_edge_2024",
+}
+```
+
 ### 部署流程
 
 ```bash
-# 初次部署
+# 1. 按上文修改仓库中 edge/docker/configs/pad-config.js（VITE_MQTT_URL 指向新站点）
+
+# 2. 提交代码
+
+# 3. 边缘端拉取代码并部署
 cd /opt/buildingos/buildingos.ai/edge/docker
-
-# 创建站点专属配置
-cat > configs/pad-config.js << 'EOF'
-window.config = {
-  VITE_APP_BASE_URL: "http://192.168.1.100:1880",
-  VITE_MQTT_URL: "ws://192.168.1.100:1884",
-  VITE_MQTT_USERNAME: "zeekr_iot_platform",
-  VITE_MQTT_PASSWORD: "",
-}
-EOF
-
+git pull
 docker compose pull frontend
 docker compose up -d frontend
 ```
@@ -270,11 +286,10 @@ docker compose up -d frontend
 ### 部署后修改配置
 
 ```bash
-# 1. 编辑宿主机配置文件
+# 1. 编辑宿主机文件（bind-mount 实时生效，nginx 对 config.js 设 no-store，刷新浏览器即可）
 vi /opt/buildingos/buildingos.ai/edge/docker/configs/pad-config.js
 
-# 2. 重载 nginx
-docker exec buildingos-frontend nginx -s reload
+# 2. 改动必须提交回代码仓库，避免下次 git pull 被覆盖
 
 # 3. 验证
 curl http://localhost:7828/pad/config.js
@@ -491,13 +506,13 @@ K8s 拉取策略:
 | **需重建镜像** | 否 | 否 | 否 |
 | **自动拉取** | `docker compose pull` | `docker compose pull` | `imagePullPolicy: Always` |
 | **访问地址** | `http://host/pad/` | `http://edge-ip:7828/pad/` | `https://domain/pad/` |
-| **多站点差异** | 每个宿主机有自己的 pad-config.js | 每个边缘端有自己的 pad-config.js | 每个集群/namespace 有自己的 ConfigMap |
+| **多站点差异** | 每个宿主机有自己的 pad-config.js | 每个边缘端有自己的 pad-config.js（仓库随码维护，新站点部署前手动修改） | 每个集群/namespace 有自己的 ConfigMap |
 
 ---
 
 ## 安全注意事项
 
-1. **`pad-config.js` 不入库**：包含密码等敏感信息，仅存在于部署宿主机或 K8s Secret 中
+1. **统一部署/K8s 的 `pad-config.js` 不入库**：包含站点凭据，仅存在于部署宿主机或 K8s Secret 中。**例外**：边缘部署模式的 `edge/docker/configs/pad-config.js` 随仓库提交（含 edge 默认凭据），部署新边缘站点前按站点修改；生产站点应替换默认凭据
 2. **推荐使用 K8s Secret 替代 ConfigMap**（生产环境）：将 `pad-config.js` 内容 base64 编码存入 Secret
 3. **配置文件权限**：宿主机 `chmod 600 configs/pad-config.js`
 4. **nginx 禁止直接访问配置文件**：确保 nginx.conf 中 `location = /pad/config.js` 仅允许内网访问或限制请求频率
