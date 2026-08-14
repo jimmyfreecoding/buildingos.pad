@@ -29,8 +29,12 @@ const typeOptions = computed(() => {
       return [{ label: '卫生间', value: 'tolite' }]
     case 'roomControl':
     case 'doorPad':
-    case 'switchPad':
       return [{ label: '独立房间', value: 'room' }]
+    case 'switchPad':
+      return [
+        { label: '独立房间', value: 'room' },
+        { label: '会议室', value: 'meetingRoom' },
+      ]
     case 'meetingControl':
       return [{ label: '会议室', value: 'meetingRoom' }]
     default:
