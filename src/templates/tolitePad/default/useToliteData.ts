@@ -54,6 +54,8 @@ export function useToliteData() {
 
   // --- 厕位状态（key: 房间 → { 厕位编号: 0空闲/1占用 }） ---
   const stallMap = ref<Record<string, Record<string, number>>>({})
+  // --- 厕位总数（聚合消息 {occupied, total} 只取 total，用于确定显示数量） ---
+  const totalMap = ref<Record<string, number>>({})
   // --- 卫生间空气 ---
   const airMap = ref<Record<string, ToiletAir>>({})
   // --- 保洁信息 ---
@@ -107,15 +109,11 @@ export function useToliteData() {
       stalls[parsed.key] = parsed.status
       return
     }
-    // 聚合格式：{ occupied, total }
+    // 聚合格式：{ occupied, total } —— 只用于确定厕位数量，状态以逐厕位消息为准
     if (payload && typeof payload === 'object') {
       const msg = payload as Record<string, any>
       const total = Number(msg?.total ?? 0)
-      if (total <= 0) return
-      const occupied = Number(msg?.occupied ?? msg?.count ?? 0)
-      for (let i = 1; i <= total; i++) {
-        stalls[String(i)] = i <= occupied ? 1 : 0
-      }
+      if (total > 0) totalMap.value[room] = total
     }
   }
 
@@ -274,14 +272,22 @@ export function useToliteData() {
     return fallbackRoom
   })
 
-  // --- 厕位（数据驱动：按编号排序，vip 最后） ---
-  const stalls = computed(() => {
+  // --- 厕位（数量由 total 决定、缺失时按已收到最大编号推断；状态未到显示未知 null，vip 最后） ---
+  const stalls = computed<(number | null)[]>(() => {
     const map = stallMap.value[activeRoom.value] ?? {}
     const nums = Object.keys(map)
       .filter((k) => k !== 'vip' && /^\d+$/.test(k))
       .map(Number)
       .sort((a, b) => a - b)
-    const list: number[] = nums.map((n) => map[String(n)])
+    const count = Math.max(
+      totalMap.value[activeRoom.value] ?? 0,
+      nums.length > 0 ? nums[nums.length - 1] : 0,
+    )
+    const list: (number | null)[] = []
+    for (let i = 1; i <= count; i++) {
+      const v = map[String(i)]
+      list.push(v === 0 || v === 1 ? v : null)
+    }
     const vip = map['vip']
     if (vip === 0 || vip === 1) list.push(vip)
     return list
