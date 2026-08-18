@@ -24,7 +24,10 @@ const padType = ref('')
 const typeOptions = computed(() => {
   switch (padType.value) {
     case 'wallPad':
-      return [{ label: '办公区域', value: 'area' }]
+      return [
+        { label: '办公区域', value: 'area' },
+        { label: '公共区域', value: 'pubarea' }
+      ]
     case 'tolitePad':
       return [{ label: '卫生间', value: 'tolite' }]
     case 'roomControl':
@@ -34,6 +37,7 @@ const typeOptions = computed(() => {
       return [
         { label: '独立房间', value: 'room' },
         { label: '会议室', value: 'meetingRoom' },
+        { label: '公共区域', value: 'pubarea' }
       ]
     case 'meetingControl':
       return [{ label: '会议室', value: 'meetingRoom' }]
@@ -94,6 +98,7 @@ const bindingInfo = computed(() => {
   roomIndex: null as number | null,
   areaIndex: null as number | null,
   toiletIndex: null as number | null,
+  pubareaIndex: null as number | null,
   companyName: ''
 })
 
@@ -179,6 +184,11 @@ const saveData = () => {
            config.roomId = toilet.id
            config.roomName = toilet.name
            config.roomCode = toilet.code
+        } else if (form.type === 'pubarea' && form.pubareaIndex !== null) {
+           const pubarea = floor.pubarea[form.pubareaIndex]
+           config.roomId = pubarea.id
+           config.roomName = pubarea.name
+           config.roomCode = pubarea.code
         }
       }
     }
@@ -505,32 +515,63 @@ const handleDialogUpdate = (val: boolean) => {
         </el-select>
       </el-form-item>
 
-      <el-form-item 
-        label="绑定卫生间" 
-        :label-width="formLabelWidth" 
+      <el-form-item
+        label="绑定卫生间"
+        :label-width="formLabelWidth"
         v-if="
           form.spaceIndex !== null &&
-          spaceObj[form.spaceIndex] && 
+          spaceObj[form.spaceIndex] &&
           form.floorareaIndex !== null &&
-          spaceObj[form.spaceIndex].floorArea && 
-          spaceObj[form.spaceIndex].floorArea[form.floorareaIndex] && 
+          spaceObj[form.spaceIndex].floorArea &&
+          spaceObj[form.spaceIndex].floorArea[form.floorareaIndex] &&
           form.floorIndex !== null &&
-          spaceObj[form.spaceIndex].floorArea[form.floorareaIndex].floor && 
-          spaceObj[form.spaceIndex].floorArea[form.floorareaIndex].floor[form.floorIndex] && 
-          spaceObj[form.spaceIndex].floorArea[form.floorareaIndex].floor[form.floorIndex].toilet && 
-          spaceObj[form.spaceIndex].floorArea[form.floorareaIndex].floor[form.floorIndex].toilet.length > 0 && 
+          spaceObj[form.spaceIndex].floorArea[form.floorareaIndex].floor &&
+          spaceObj[form.spaceIndex].floorArea[form.floorareaIndex].floor[form.floorIndex] &&
+          spaceObj[form.spaceIndex].floorArea[form.floorareaIndex].floor[form.floorIndex].toilet &&
+          spaceObj[form.spaceIndex].floorArea[form.floorareaIndex].floor[form.floorIndex].toilet.length > 0 &&
           form.type === 'tolite'
         "
       >
-        <el-select 
-          v-model="form.toiletIndex" 
-          placeholder="绑定卫生间" 
-          size="large" 
+        <el-select
+          v-model="form.toiletIndex"
+          placeholder="绑定卫生间"
+          size="large"
         >
-          <el-option 
-            :label="area.name" 
-            :value="index" 
-            v-for="(area, index) in spaceObj[form.spaceIndex].floorArea[form.floorareaIndex].floor[form.floorIndex].toilet" 
+          <el-option
+            :label="area.name"
+            :value="index"
+            v-for="(area, index) in spaceObj[form.spaceIndex].floorArea[form.floorareaIndex].floor[form.floorIndex].toilet"
+            :key="index"
+          />
+        </el-select>
+      </el-form-item>
+
+      <el-form-item
+        label="绑定公共区域"
+        :label-width="formLabelWidth"
+        v-if="
+          form.spaceIndex !== null &&
+          spaceObj[form.spaceIndex] &&
+          form.floorareaIndex !== null &&
+          spaceObj[form.spaceIndex].floorArea &&
+          spaceObj[form.spaceIndex].floorArea[form.floorareaIndex] &&
+          form.floorIndex !== null &&
+          spaceObj[form.spaceIndex].floorArea[form.floorareaIndex].floor &&
+          spaceObj[form.spaceIndex].floorArea[form.floorareaIndex].floor[form.floorIndex] &&
+          spaceObj[form.spaceIndex].floorArea[form.floorareaIndex].floor[form.floorIndex].pubarea &&
+          spaceObj[form.spaceIndex].floorArea[form.floorareaIndex].floor[form.floorIndex].pubarea.length > 0 &&
+          form.type === 'pubarea'
+        "
+      >
+        <el-select
+          v-model="form.pubareaIndex"
+          placeholder="绑定公共区域"
+          size="large"
+        >
+          <el-option
+            :label="area.name"
+            :value="index"
+            v-for="(area, index) in spaceObj[form.spaceIndex].floorArea[form.floorareaIndex].floor[form.floorIndex].pubarea"
             :key="index"
           />
         </el-select>

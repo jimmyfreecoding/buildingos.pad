@@ -20,6 +20,7 @@ export interface Floor {
   room?: Room[]
   area?: Area[]
   toilet?: Toilet[]
+  pubarea?: Area[]
 }
 
 export interface FloorArea {

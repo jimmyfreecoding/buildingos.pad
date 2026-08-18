@@ -68,13 +68,17 @@ const ratios = [
 
 const typeOptions = computed(() => {
   switch (padType.value) {
-    case 'wallPad': return [{ label: '办公区域', value: 'area' }]
+    case 'wallPad': return [
+      { label: '办公区域', value: 'area' },
+      { label: '公共区域', value: 'pubarea' },
+    ]
     case 'tolitePad': return [{ label: '卫生间', value: 'tolite' }]
     case 'roomControl':
     case 'doorPad': return [{ label: '独立房间', value: 'room' }]
     case 'switchPad': return [
       { label: '独立房间', value: 'room' },
       { label: '会议室', value: 'meetingRoom' },
+      { label: '公共区域', value: 'pubarea' },
     ]
     case 'meetingControl': return [{ label: '会议室', value: 'meetingRoom' }]
     default: return [
@@ -100,6 +104,7 @@ const form = reactive({
   roomIndex: null as number | null,
   areaIndex: null as number | null,
   toiletIndex: null as number | null,
+  pubareaIndex: null as number | null,
   companyName: '',
 })
 
@@ -174,6 +179,7 @@ const handleSubmit = () => {
           : form.type === 'room' ? form.roomIndex
           : form.type === 'area' ? form.areaIndex
           : form.type === 'tolite' ? form.toiletIndex
+          : form.type === 'pubarea' ? form.pubareaIndex
           : null
 
         const roomList = (floor as any)[roomKey]
@@ -350,6 +356,13 @@ const handleConfirmTemplate = () => {
         <el-form-item label="绑定卫生间" v-if="currentFloor && form.type === 'tolite' && currentFloor.toilet?.length">
           <el-select v-model="form.toiletIndex" placeholder="选择卫生间" class="w-full">
             <el-option :label="t.name" :value="i" v-for="(t, i) in currentFloor.toilet" :key="i" />
+          </el-select>
+        </el-form-item>
+
+        <!-- Pubarea -->
+        <el-form-item label="绑定公共区域" v-if="currentFloor && form.type === 'pubarea' && currentFloor.pubarea?.length">
+          <el-select v-model="form.pubareaIndex" placeholder="选择公共区域" class="w-full">
+            <el-option :label="p.name" :value="i" v-for="(p, i) in currentFloor.pubarea" :key="i" />
           </el-select>
         </el-form-item>
 

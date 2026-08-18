@@ -150,12 +150,26 @@ export function useAcMqtt() {
     if (key.value) deviceStore.release(key.value)
   })
 
+  // 控制后回查状态（与 useLightMqtt 相同模式）
+  const queryGroupStatus = (delay = 4000) => {
+    setTimeout(() => {
+      if (ctx.value) mqtt.publish(topics.acAction(ctx.value), { action: 'status' })
+    }, delay)
+  }
+
+  const queryDeviceStatus = (deviceName: string, delay = 500) => {
+    setTimeout(() => {
+      if (ctx.value) mqtt.publish(topics.acAction(ctx.value) + '/' + deviceName, { action: 'status' })
+    }, delay)
+  }
+
   const togglePower = () => {
     if (!ctx.value) { console.warn('[AcMqtt] togglePower: no ctx'); return }
     const action = ac.value.power ? 'off' : 'on'
     const topic = topics.acAction(ctx.value)
     console.log('[AcMqtt] togglePower:', action, 'topic:', topic)
     mqtt.publish(topic, { action })
+    queryGroupStatus()
   }
 
   const setTemp = (delta: number) => {
@@ -164,6 +178,7 @@ export function useAcMqtt() {
     const topic = topics.acAction(ctx.value)
     console.log('[AcMqtt] setTemp:', delta, '→', newTemp, 'topic:', topic)
     mqtt.publish(topic, { action: 'setTemp', value: newTemp })
+    queryGroupStatus()
   }
 
   const setMode = (mode: AcMode) => {
@@ -171,6 +186,7 @@ export function useAcMqtt() {
     const topic = topics.acAction(ctx.value)
     console.log('[AcMqtt] setMode:', mode, 'topic:', topic)
     mqtt.publish(topic, { action: 'setMode', value: mode })
+    queryGroupStatus()
   }
 
   const setSpeed = (speed: FanSpeed) => {
@@ -178,6 +194,7 @@ export function useAcMqtt() {
     const topic = topics.acAction(ctx.value)
     console.log('[AcMqtt] setSpeed:', speed, 'topic:', topic)
     mqtt.publish(topic, { action: 'setSpeed', value: speed })
+    queryGroupStatus()
   }
 
   const toggleDevicePower = (deviceId: string) => {
@@ -189,6 +206,8 @@ export function useAcMqtt() {
     if (on) {
       console.log('[AcMqtt] toggleDevicePower:', device.name, '-> off', 'topic:', topic)
       mqtt.publish(topic, { action: 'off' })
+      applyOptimistic(device.id, { status: 'off' })
+      queryDeviceStatus(device.name)
     } else {
       publishOn(device, {})
     }
@@ -203,6 +222,16 @@ export function useAcMqtt() {
     fan: Number(device.status?.fan) || 45,
   })
 
+  // 乐观更新单设备状态（仅改目标设备，不做多机平均），回查结果到达后由状态订阅覆盖
+  const applyOptimistic = (deviceId: string, patch: Record<string, any>) => {
+    const current = ac.value
+    if (current.devices.length === 0) return
+    const updated = current.devices.map((d) =>
+      d.id === deviceId ? { ...d, status: { ...d.status, ...patch } } : d
+    )
+    deviceStore.applyAcState(key.value, { devices: updated, ...aggregate(updated) })
+  }
+
   const publishOn = (device: AcDevice, overrides: { temp?: number; mode?: number; fan?: number }) => {
     if (!ctx.value) return
     const nums = readDeviceNums(device)
@@ -210,6 +239,13 @@ export function useAcMqtt() {
     const payload = { action: 'on', temperature: overrides.temp ?? nums.temp, mode: overrides.mode ?? nums.mode, fan: overrides.fan ?? nums.fan }
     console.log('[AcMqtt] publishOn:', device.name, 'topic:', topic, 'payload:', JSON.stringify(payload))
     mqtt.publish(topic, payload)
+    applyOptimistic(device.id, {
+      status: 'on',
+      pretemperature: payload.temperature,
+      mode: payload.mode,
+      fan: payload.fan,
+    })
+    queryDeviceStatus(device.name)
   }
 
   const setDeviceTemp = (deviceId: string, temp: number) => {
