@@ -173,11 +173,6 @@ const getDeviceMode = (d: any): AcMode => MODE_MAP_REV[Number(d.status?.mode)] |
 
 const getDeviceSpeed = (d: any): FanSpeed => FAN_MAP_REV[Number(d.status?.fan)] || 'mid'
 
-const getTempPercent = (d: any): string => {
-  const t = getDeviceTemp(d)
-  return ((t - 16) / 14 * 100).toFixed(1) + '%'
-}
-
 // --- Lighting devices (from MQTT) ---
 const lightDevices = computed(() => {
   if (isConnected.value && lights.value?.devices?.length) {
@@ -279,12 +274,46 @@ const handleCycleSpeed = (device: any) => {
 }
 
 // --- Vertical slider ---
-const onSliderDown = (e: PointerEvent) => {
-  if (!activeAcDevice.value || !isConnected.value) return
+const dragTemp = ref<number | null>(null)
+
+const displayTemp = computed(() => {
+  if (dragTemp.value !== null) return dragTemp.value
+  return activeAcDevice.value ? getDeviceTemp(activeAcDevice.value) : 24
+})
+
+const tempPercent = computed(() => ((displayTemp.value - 16) / 14 * 100).toFixed(1) + '%')
+
+const tempFromEvent = (e: PointerEvent): number => {
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
   const p = Math.min(1, Math.max(0, 1 - (e.clientY - rect.top) / rect.height))
-  const temp = Math.round(16 + p * 14)
-  handleSetTemp(activeAcDevice.value, temp)
+  return Math.round(16 + p * 14)
+}
+
+let sliderDragging = false
+
+const onSliderDown = (e: PointerEvent) => {
+  if (!activeAcDevice.value || !isConnected.value) return
+  e.stopPropagation()
+  sliderDragging = true
+  const el = e.currentTarget as HTMLElement
+  el.setPointerCapture(e.pointerId)
+  dragTemp.value = tempFromEvent(e)
+}
+
+const onSliderMove = (e: PointerEvent) => {
+  if (!sliderDragging) return
+  dragTemp.value = tempFromEvent(e)
+}
+
+const onSliderUp = (e: PointerEvent) => {
+  if (!sliderDragging) return
+  e.stopPropagation()
+  sliderDragging = false
+  const t = dragTemp.value
+  dragTemp.value = null
+  if (t !== null && activeAcDevice.value && isConnected.value) {
+    handleSetTemp(activeAcDevice.value, t)
+  }
 }
 </script>
 
@@ -410,12 +439,19 @@ const onSliderDown = (e: PointerEvent) => {
               <div class="temp-row">
                 <div class="temp-box">
                   <div class="temp-num" :class="{ 'opacity-30': !getDeviceOn(activeAcDevice) }">
-                    <span class="v">{{ getDeviceTemp(activeAcDevice) }}</span>
+                    <span class="v">{{ displayTemp }}</span>
                     <span class="u">°C</span>
                   </div>
                 </div>
-                <div v-if="getDeviceOn(activeAcDevice)" class="track-v" @pointerdown="onSliderDown">
-                  <div class="fill" :style="{ height: getTempPercent(activeAcDevice) }"></div>
+                <div
+                  v-if="getDeviceOn(activeAcDevice)"
+                  class="track-v"
+                  @pointerdown="onSliderDown"
+                  @pointermove="onSliderMove"
+                  @pointerup="onSliderUp"
+                  @pointercancel="onSliderUp"
+                >
+                  <div class="fill" :style="{ height: tempPercent }"></div>
                 </div>
               </div>
 
