@@ -10,7 +10,7 @@ import { useToliteData } from './useToliteData'
 
 const router = useRouter()
 const store = useCockpitStore()
-const { floorName, activeRoom, stalls, airDisplay, cleaningDisplay, bgVideo } = useToliteData()
+const { floorName, activeRoom, stallRows, otherFloorList, airDisplay, cleaningDisplay, bgVideo } = useToliteData()
 
 const logoUrl = new URL('./assets/images/geely.png', import.meta.url).href
 
@@ -37,15 +37,6 @@ onUnmounted(() => { if (logoTapTimer) clearTimeout(logoTapTimer) })
 
 const genderLabel = computed(() => (activeRoom.value.startsWith('TWOMAN') ? '女卫生间' : '男卫生间'))
 const floorLabel = computed(() => floorName || '—')
-
-const otherFloors = [
-  { floor: '43F', free: 3, statuses: ['free', 'free', 'free', 'occupied', 'free'] },
-  { floor: '41F', free: 2, statuses: ['occupied', 'free', 'free', 'occupied', 'free'] }
-]
-
-const getStatusColor = (status: string) => {
-  return status === 'free' ? 'bg-[#4ade80]' : 'bg-[#ef4444]'
-}
 
 // 厕位 dot：0 空闲(绿) / 1 占用(红) / null 未知(灰)
 const stallColor = (status: number | null) => {
@@ -129,14 +120,19 @@ const metrics = computed(() => {
 
           <BaseCard title="其他楼层" class="h-[65%] border-none min-h-0 flex flex-col">
             <div class="flex-1 flex flex-col gap-6 justify-center mt-2">
-              <div v-for="floor in otherFloors" :key="floor.floor" class="flex items-center justify-start">
-                <span class="text-[clamp(1rem,1.5vw,1.25rem)] text-white/80 font-medium whitespace-nowrap mr-2 xl:mr-4">{{ floor.floor }}-空闲{{ floor.free }}</span>
+              <div v-for="floor in otherFloorList" :key="floor.label" class="flex items-center justify-start">
+                <span class="text-[clamp(1rem,1.5vw,1.25rem)] text-white/80 font-medium whitespace-nowrap mr-2 xl:mr-4">{{ floor.label }}-空闲{{ floor.free }}</span>
                 <div class="flex gap-1.5 xl:gap-2 items-center flex-wrap">
                   <div
                     v-for="(status, idx) in floor.statuses"
                     :key="idx"
                     class="w-[clamp(0.625rem,0.9vw,0.875rem)] h-[clamp(0.625rem,0.9vw,0.875rem)] rounded-full shrink-0"
-                    :class="getStatusColor(status)"
+                    :class="stallColor(status)"
+                  ></div>
+                  <div
+                    v-if="floor.vip !== null"
+                    class="w-[clamp(0.625rem,0.9vw,0.875rem)] h-[clamp(0.625rem,0.9vw,0.875rem)] rounded-full shrink-0"
+                    :class="stallColor(floor.vip)"
                   ></div>
                 </div>
               </div>
@@ -152,19 +148,25 @@ const metrics = computed(() => {
             </div>
             <h1 class="text-4xl font-medium mb-12 z-10 tracking-widest">{{ floorLabel }} {{ genderLabel }}</h1>
 
-            <!-- 5 个厕位，分两行（3+2）平均分布 -->
-            <div class="grid grid-cols-6 gap-y-12 w-full max-w-4xl px-8 z-10">
+            <!-- 厕位状态：6 个以内一行，超过分两行且列对齐 -->
+            <div class="w-full max-w-4xl px-8 z-10 flex flex-col gap-12">
               <div
-                v-for="(status, idx) in stalls"
-                :key="idx"
-                class="col-span-2 flex flex-col items-center gap-4"
-                :class="{ 'col-start-2': idx === 3 }"
+                v-for="(row, ri) in stallRows"
+                :key="ri"
+                class="grid w-full justify-center"
+                :style="{ gridTemplateColumns: `repeat(${row.cols}, minmax(0, 1fr))`, columnGap: '2rem' }"
               >
                 <div
-                  class="w-[clamp(3rem,7vw,4.5rem)] h-[clamp(3rem,7vw,4.5rem)] rounded-full shadow-lg transition-all duration-500 hover:scale-105 shrink-0"
-                  :class="stallColor(status)"
-                ></div>
-                <span class="text-white/40 text-base leading-none">{{ idx + 1 }}</span>
+                  v-for="(status, idx) in row.stalls"
+                  :key="idx"
+                  class="flex items-center justify-center"
+                  :style="row.offset > 0 && idx === 0 ? { gridColumn: row.offset + 1 } : undefined"
+                >
+                  <div
+                    class="w-[clamp(3rem,7vw,4.5rem)] h-[clamp(3rem,7vw,4.5rem)] rounded-full shadow-lg transition-all duration-500 hover:scale-105 shrink-0"
+                    :class="stallColor(status)"
+                  ></div>
+                </div>
               </div>
             </div>
           </BaseCard>

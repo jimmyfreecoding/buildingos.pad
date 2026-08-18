@@ -34,6 +34,7 @@ function toNum(v: unknown): number | undefined {
  * - 空气传感器: /iot/status/airsensor/{space}/{floorarea}/{floor}/{room}/#
  * - 保洁打卡: /iot/status/cleaning/{space}/{floorarea}/{floor}/{room}/#
  * - 天气 → 背景视频: /wallpad/outside
+ * - 其他楼层: 同性别卫生间相邻两层 wcsensor（默认上两层，顶层取下两层）
  */
 export function useToliteData() {
   const spaceStore = useSpaceStore()
@@ -57,6 +58,11 @@ export function useToliteData() {
   const airMap = ref<Record<string, ToiletAir>>({})
   // --- 保洁信息 ---
   const cleaningMap = ref<Record<string, CleaningInfo>>({})
+  // --- 其他楼层厕位（key: 楼层标签如 "2F" → { 厕位编号: 0/1 }） ---
+  const otherStallMap = ref<Record<string, Record<string, number>>>({})
+  const neighborFloors = ref<Array<{ label: string; code: string }>>([])
+  const neighborUnsubs: Array<() => void> = []
+  let disposed = false
 
   // --- 外部天气 → 背景视频（与 wallPad zeekr / switchPad 相同） ---
   const outside = ref<{ today?: string }>({})
@@ -81,20 +87,28 @@ export function useToliteData() {
     bgVideo.value = `${base}video/${file}`
   }
 
+  // 原项目协议：每个厕位一条消息，topic 末段为厕位编号（1/2/…/P=vip）
+  const parseStallMessage = (payload: unknown, topic: string): { key: string; status: number } | null => {
+    if (!Array.isArray(payload)) return null
+    const item = (payload[0] ?? {}) as Record<string, any>
+    const raw = item?.status?.status
+    if (raw === undefined || raw === null) return null
+    const seg = topic.slice(topic.lastIndexOf('/') + 1)
+    const key = seg === 'P' ? 'vip' : seg
+    if (key !== 'vip' && !/^\d+$/.test(key)) return null
+    return { key, status: raw === 1 || raw === true || raw === 'on' || raw === '1' ? 1 : 0 }
+  }
+
   const handleWcMessage = (room: string, payload: unknown, topic: string) => {
     const stalls = stallMap.value[room] ?? (stallMap.value[room] = {})
 
-    if (Array.isArray(payload)) {
-      // 原项目协议：每个厕位一条消息，topic 末段为厕位编号（1/2/…/P=vip）
-      const item = (payload[0] ?? {}) as Record<string, any>
-      const raw = item?.status?.status
-      if (raw === undefined || raw === null) return
-      const seg = topic.slice(topic.lastIndexOf('/') + 1)
-      const key = seg === 'P' ? 'vip' : seg
-      if (key !== 'vip' && !/^\d+$/.test(key)) return
-      stalls[key] = raw === 1 || raw === true || raw === 'on' || raw === '1' ? 1 : 0
-    } else if (payload && typeof payload === 'object') {
-      // 聚合格式：{ occupied, total }
+    const parsed = parseStallMessage(payload, topic)
+    if (parsed) {
+      stalls[parsed.key] = parsed.status
+      return
+    }
+    // 聚合格式：{ occupied, total }
+    if (payload && typeof payload === 'object') {
       const msg = payload as Record<string, any>
       const total = Number(msg?.total ?? 0)
       if (total <= 0) return
@@ -103,6 +117,13 @@ export function useToliteData() {
         stalls[String(i)] = i <= occupied ? 1 : 0
       }
     }
+  }
+
+  const handleOtherWcMessage = (floorLabel: string, payload: unknown, topic: string) => {
+    const parsed = parseStallMessage(payload, topic)
+    if (!parsed) return
+    const map = otherStallMap.value[floorLabel] ?? (otherStallMap.value[floorLabel] = {})
+    map[parsed.key] = parsed.status
   }
 
   const handleAirMessage = (room: string, payload: unknown) => {
@@ -134,6 +155,60 @@ export function useToliteData() {
     cleaningMap.value[room] = {
       endTime: String(endTime),
       empName: msg.empName ? String(msg.empName) : '',
+    }
+  }
+
+  // --- 其他楼层（同性别，默认上两层；顶层取下两层） ---
+  const parseFloorNum = (v: unknown) => {
+    const n = parseInt(String(v ?? '').replace(/\D/g, ''), 10)
+    return Number.isFinite(n) ? n : NaN
+  }
+  const floorSeg = (n: number) => `${n}F`
+
+  const findNeighborFloors = (): Array<{ label: string; code: string }> => {
+    const c = ctx.value
+    if (!c) return []
+    const num = parseFloorNum(c.floorCode)
+    if (Number.isNaN(num)) return []
+    // 结构数据可用时按当前区域楼层列表判断（顶层 → 下两层），否则默认上两层
+    for (const space of spaceStore.structure) {
+      const area = (space.floorArea ?? []).find((fa) => String(fa.code ?? '') === String(c.floorAreaCode))
+      if (!area) continue
+      const floors = (area.floor ?? []).map((f) => ({
+        code: String(f.code ?? ''),
+        num: parseFloorNum(f.code ?? f.name),
+      }))
+      const idx = floors.findIndex((f) => f.num === num)
+      if (idx < 0) continue
+      const isTop = idx === floors.length - 1
+      const pick = isTop ? [idx - 2, idx - 1] : [idx + 1, idx + 2]
+      return pick
+        .filter((i) => i >= 0 && i < floors.length)
+        .map((i) => {
+          const n = Number.isNaN(floors[i].num) ? num + (i - idx) : floors[i].num
+          const seg = floorSeg(n)
+          return { label: seg, code: /^\d+F$/i.test(floors[i].code) ? floors[i].code : seg }
+        })
+    }
+    return [
+      { label: floorSeg(num + 1), code: floorSeg(num + 1) },
+      { label: floorSeg(num + 2), code: floorSeg(num + 2) },
+    ]
+  }
+
+  const applyNeighbors = () => {
+    for (const fn of neighborUnsubs) fn()
+    neighborUnsubs.length = 0
+    if (disposed) return
+    const c = ctx.value
+    if (!c) return
+    const floors = findNeighborFloors()
+    neighborFloors.value = floors
+    for (const f of floors) {
+      const topic = topics.wcSensor({ ...c, floorCode: f.code }, boundRoom)
+      mqtt.subscribe(topic)
+      neighborUnsubs.push(() => mqtt.unsubscribe(topic))
+      neighborUnsubs.push(mqtt.onMessage(topic, (payload, t) => handleOtherWcMessage(f.label, payload, t)))
     }
   }
 
@@ -169,13 +244,21 @@ export function useToliteData() {
         setInitBg()
       }
     }))
+
+    applyNeighbors()
+    if (spaceStore.structure.length === 0) {
+      spaceStore.loadStructure().finally(applyNeighbors)
+    }
   }
 
   setup()
 
   onScopeDispose(() => {
+    disposed = true
     for (const fn of unsubs) fn()
     unsubs.length = 0
+    for (const fn of neighborUnsubs) fn()
+    neighborUnsubs.length = 0
   })
 
   // --- 当前展示房间（优先绑定房间，其次按男女，最后谁有数据用谁） ---
@@ -191,15 +274,49 @@ export function useToliteData() {
     return fallbackRoom
   })
 
-  // --- 厕位（固定 5 个，无数据为 null） ---
-  const STALL_COUNT = 5
+  // --- 厕位（数据驱动：按编号排序，vip 最后） ---
   const stalls = computed(() => {
     const map = stallMap.value[activeRoom.value] ?? {}
-    return Array.from({ length: STALL_COUNT }, (_, i) => {
-      const v = map[String(i + 1)]
-      return v === undefined ? null : v
-    })
+    const nums = Object.keys(map)
+      .filter((k) => k !== 'vip' && /^\d+$/.test(k))
+      .map(Number)
+      .sort((a, b) => a - b)
+    const list: number[] = nums.map((n) => map[String(n)])
+    const vip = map['vip']
+    if (vip === 0 || vip === 1) list.push(vip)
+    return list
   })
+
+  // --- 厕位布局：6 个以内一行；超过分两行，列对齐 ---
+  const stallRows = computed(() => {
+    const n = stalls.value.length
+    if (n === 0) return []
+    if (n <= 6) return [{ cols: n, offset: 0, stalls: stalls.value }]
+    const first = Math.ceil(n / 2)
+    const row1 = stalls.value.slice(0, first)
+    const row2 = stalls.value.slice(first)
+    const cols = Math.max(row1.length, row2.length)
+    const offset = Math.round((cols - row2.length) / 2)
+    return [
+      { cols, offset: 0, stalls: row1 },
+      { cols, offset, stalls: row2 },
+    ]
+  })
+
+  // --- 其他楼层展示（同性别厕位，vip 计入空闲数） ---
+  const otherFloorList = computed(() =>
+    neighborFloors.value.map((f) => {
+      const map = otherStallMap.value[f.label] ?? {}
+      const statuses = Object.entries(map)
+        .filter(([k, v]) => k !== 'vip' && (v === 0 || v === 1))
+        .sort((a, b) => Number(a[0]) - Number(b[0]))
+        .map(([, v]) => v)
+      const vip = map['vip']
+      const vipStatus = vip === 0 || vip === 1 ? vip : null
+      const free = statuses.filter((v) => v === 0).length + (vipStatus === 0 ? 1 : 0)
+      return { label: f.label, free, statuses, vip: vipStatus }
+    })
+  )
 
   // --- 空气显示值（参考原项目单位换算：h2s×1.391、nh3×0.695 → mg/m³） ---
   const airDisplay = computed(() => {
@@ -235,6 +352,8 @@ export function useToliteData() {
     roomName,
     activeRoom,
     stalls,
+    stallRows,
+    otherFloorList,
     airDisplay,
     cleaningDisplay,
     bgVideo,
