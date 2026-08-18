@@ -1,59 +1,133 @@
 <script setup lang="ts">
+import { ref, computed, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useCockpitStore } from '@/stores/cockpit'
 import AppBackground from '@/components/AppBackground.vue'
-import AppLogo from '@/components/AppLogo.vue'
 import TimeWidget from '@/components/TimeWidget.vue'
 import BaseCard from '@/components/BaseCard.vue'
 import QualityCard from '@/components/QualityCard.vue'
+import { useToliteData } from './useToliteData'
 
+const router = useRouter()
 const store = useCockpitStore()
+const { floorName, activeRoom, stalls, airDisplay, cleaningDisplay, bgVideo } = useToliteData()
 
-const cleaningTime = '09:00'
-const cleaningDate = '07月01日'
+const logoUrl = new URL('./assets/images/geely.png', import.meta.url).href
+
+// 背景：MQTT 天气视频，未收到天气消息时使用默认视频
+const background = computed(() => ({
+  type: 'video' as const,
+  src: bgVideo.value || store.background.src,
+}))
+
+// Logo 三击 → /init（密码页）
+const logoTapCount = ref(0)
+let logoTapTimer: ReturnType<typeof setTimeout> | null = null
+const onLogoClick = () => {
+  logoTapCount.value++
+  if (logoTapCount.value >= 3) {
+    logoTapCount.value = 0
+    router.push('/init')
+    return
+  }
+  if (logoTapTimer) clearTimeout(logoTapTimer)
+  logoTapTimer = setTimeout(() => { logoTapCount.value = 0 }, 800)
+}
+onUnmounted(() => { if (logoTapTimer) clearTimeout(logoTapTimer) })
+
+const genderLabel = computed(() => (activeRoom.value.startsWith('TWOMAN') ? '女卫生间' : '男卫生间'))
+const floorLabel = computed(() => floorName || '—')
 
 const otherFloors = [
   { floor: '43F', free: 3, statuses: ['free', 'free', 'free', 'occupied', 'free'] },
   { floor: '41F', free: 2, statuses: ['occupied', 'free', 'free', 'occupied', 'free'] }
 ]
 
-const currentFloor = {
-  floor: '42F',
-  statuses: ['free', 'free', 'occupied', 'free', 'free']
-}
-
-const metrics = [
-  { title: '温度', status: '舒适', value: '26.2', unit: '℃', progress: 70, statusColor: 'text-green-400' },
-  { title: '湿度', status: '舒适', value: '63', unit: '%', progress: 60, statusColor: 'text-green-400' },
-  { title: '硫化氢', status: '正常', value: '0.001', unit: 'mg/m³', progress: 10, statusColor: 'text-green-400' },
-  { title: 'PM2.5', status: '优', value: '18', unit: 'μg/m³', progress: 20, statusColor: 'text-green-400' },
-  { title: '氨气', status: '安全', value: '0.000', unit: 'mg/m³', progress: 0, statusColor: 'text-green-400' }
-]
-
 const getStatusColor = (status: string) => {
   return status === 'free' ? 'bg-[#4ade80]' : 'bg-[#ef4444]'
 }
+
+// 厕位 dot：0 空闲(绿) / 1 占用(红) / null 未知(灰)
+const stallColor = (status: number | null) => {
+  if (status === null) return 'bg-white/15'
+  return status === 1 ? 'bg-[#ef4444]' : 'bg-[#4ade80]'
+}
+
+// 最近保洁时间（无数据显示“未知”）
+const cleaningTime = computed(() => cleaningDisplay.value?.time || '未知')
+const cleaningDate = computed(() => cleaningDisplay.value?.date || '')
+
+// 空气指标（无数据显示“未知”）
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
+
+const metrics = computed(() => {
+  const air = airDisplay.value
+  const humidityStatus = (h: number) => (h < 30 ? '干燥' : h <= 60 ? '舒适' : '高湿')
+  return [
+    {
+      title: '温度',
+      status: air?.temperature !== undefined ? '实时' : '未知',
+      value: air?.temperature !== undefined ? air.temperature.toFixed(1) : '未知',
+      unit: air?.temperature !== undefined ? '℃' : '',
+      progress: air?.temperature !== undefined ? clamp((air.temperature - 10) / 30 * 100, 0, 100) : 0,
+      statusColor: 'text-green-400',
+    },
+    {
+      title: '湿度',
+      status: air?.humidity !== undefined ? humidityStatus(air.humidity) : '未知',
+      value: air?.humidity !== undefined ? air.humidity.toFixed(1) : '未知',
+      unit: air?.humidity !== undefined ? '%' : '',
+      progress: air?.humidity !== undefined ? clamp(air.humidity, 0, 100) : 0,
+      statusColor: 'text-green-400',
+    },
+    {
+      title: '硫化氢',
+      status: air?.h2s !== undefined ? '正常' : '未知',
+      value: air?.h2s !== undefined ? air.h2s.toFixed(3) : '未知',
+      unit: air?.h2s !== undefined ? 'mg/m³' : '',
+      progress: air?.h2s !== undefined ? clamp(air.h2s / 0.011 * 100, 0, 100) : 0,
+      statusColor: 'text-green-400',
+    },
+    {
+      title: 'PM2.5',
+      status: air?.pm25 !== undefined ? '优' : '未知',
+      value: air?.pm25 !== undefined ? air.pm25.toFixed(1) : '未知',
+      unit: air?.pm25 !== undefined ? 'μg/m³' : '',
+      progress: air?.pm25 !== undefined ? clamp(air.pm25 / 75 * 100, 0, 100) : 0,
+      statusColor: 'text-green-400',
+    },
+    {
+      title: '氨气',
+      status: air?.nh3 !== undefined ? '正常' : '未知',
+      value: air?.nh3 !== undefined ? air.nh3.toFixed(3) : '未知',
+      unit: air?.nh3 !== undefined ? 'mg/m³' : '',
+      progress: air?.nh3 !== undefined ? clamp(air.nh3 / 9.2 * 100, 0, 100) : 0,
+      statusColor: 'text-green-400',
+    },
+  ]
+})
 </script>
 
 <template>
-  <AppBackground :type="store.background.type" :src="store.background.src" />
+  <AppBackground :type="background.type" :src="background.src" />
   <div class="relative z-10 w-full h-full text-white flex flex-col p-6 box-border overflow-hidden">
 
     <header class="flex justify-between items-start px-2 shrink-0 mb-4">
-      <AppLogo />
+      <img :src="logoUrl" class="h-12 w-auto cursor-pointer select-none" @click="onLogoClick" />
       <TimeWidget />
     </header>
 
     <div class="flex-1 min-h-0 grid grid-cols-12 grid-rows-[1fr_auto] gap-6">
       <div class="col-span-12 grid grid-cols-12 gap-6 h-full min-h-0">
         <div class="col-span-3 flex flex-col gap-6 h-full min-h-0">
-          <BaseCard title="最近保洁时间" class="h-[35%]  border-none shrink-0 flex flex-col">
-             <div class="flex-1 flex flex-col justify-center mt-2">
-               <div class="text-[clamp(2.5rem,4vw,3.75rem)] font-medium tracking-tight mb-2 leading-none">{{ cleaningTime }}</div>
-               <div class="text-lg text-white/50">{{ cleaningDate }}</div>
-             </div>
+          <BaseCard title="最近保洁时间" class="h-[35%] border-none shrink-0 flex flex-col">
+            <div class="flex-1 flex flex-col justify-center mt-2">
+              <div class="text-[clamp(2.5rem,4vw,3.75rem)] font-medium tracking-tight mb-2 leading-none">{{ cleaningTime }}</div>
+              <div class="text-lg text-white/50">{{ cleaningDate }}</div>
+            </div>
           </BaseCard>
 
-          <BaseCard title="其他楼层" class="h-[65%]  border-none min-h-0 flex flex-col">
+          <BaseCard title="其他楼层" class="h-[65%] border-none min-h-0 flex flex-col">
             <div class="flex-1 flex flex-col gap-6 justify-center mt-2">
               <div v-for="floor in otherFloors" :key="floor.floor" class="flex items-center justify-start">
                 <span class="text-[clamp(1rem,1.5vw,1.25rem)] text-white/80 font-medium whitespace-nowrap mr-2 xl:mr-4">{{ floor.floor }}-空闲{{ floor.free }}</span>
@@ -71,24 +145,29 @@ const getStatusColor = (status: string) => {
         </div>
 
         <div class="col-span-9 h-full min-h-0">
-           <BaseCard title="当前楼层" class="w-full h-full border-none min-h-0 flex flex-col">
-              <div class="absolute inset-0 opacity-30">
-                 <div class="absolute top-1/2 left-0 w-full h-64 -translate-y-1/2 bg-gradient-to-r from-transparent via-blue-500/20 to-transparent blur-3xl transform rotate-12"></div>
-                 <div class="absolute top-1/2 left-0 w-full h-64 -translate-y-1/2 bg-gradient-to-r from-transparent via-cyan-500/10 to-transparent blur-3xl transform -rotate-6"></div>
+          <BaseCard title="当前楼层" class="w-full h-full border-none min-h-0 flex flex-col">
+            <div class="absolute inset-0 opacity-30">
+              <div class="absolute top-1/2 left-0 w-full h-64 -translate-y-1/2 bg-gradient-to-r from-transparent via-blue-500/20 to-transparent blur-3xl transform rotate-12"></div>
+              <div class="absolute top-1/2 left-0 w-full h-64 -translate-y-1/2 bg-gradient-to-r from-transparent via-cyan-500/10 to-transparent blur-3xl transform -rotate-6"></div>
+            </div>
+            <h1 class="text-4xl font-medium mb-12 z-10 tracking-widest">{{ floorLabel }} {{ genderLabel }}</h1>
+
+            <!-- 5 个厕位，分两行（3+2）平均分布 -->
+            <div class="grid grid-cols-6 gap-y-12 w-full max-w-4xl px-8 z-10">
+              <div
+                v-for="(status, idx) in stalls"
+                :key="idx"
+                class="col-span-2 flex flex-col items-center gap-4"
+                :class="{ 'col-start-2': idx === 3 }"
+              >
+                <div
+                  class="w-[clamp(3rem,7vw,4.5rem)] h-[clamp(3rem,7vw,4.5rem)] rounded-full shadow-lg transition-all duration-500 hover:scale-105 shrink-0"
+                  :class="stallColor(status)"
+                ></div>
+                <span class="text-white/40 text-base leading-none">{{ idx + 1 }}</span>
               </div>
-              <h1 class="text-4xl font-medium mb-12 z-10 tracking-widest">{{ currentFloor.floor }} 男卫生间</h1>
-              <div class="flex items-center justify-between w-full max-w-4xl px-12 z-10">
-                 <template v-for="(status, idx) in currentFloor.statuses" :key="idx">
-                    <div class="flex-1 flex justify-center relative">
-                      <div
-                         class="w-[clamp(3rem,8vw,5rem)] h-[clamp(3rem,8vw,5rem)] rounded-full shadow-lg transition-all duration-500 hover:scale-105 shrink-0"
-                         :class="getStatusColor(status)"
-                       ></div>
-                      <div v-if="idx < currentFloor.statuses.length - 1" class="absolute right-0 top-1/2 -translate-y-1/2 w-[1px] h-[clamp(2rem,6vw,4rem)] bg-white/10 translate-x-[50%]"></div>
-                    </div>
-                 </template>
-              </div>
-           </BaseCard>
+            </div>
+          </BaseCard>
         </div>
       </div>
 
@@ -102,7 +181,7 @@ const getStatusColor = (status: string) => {
           :unit="item.unit"
           :progress="item.progress"
           :status-color="item.statusColor"
-          class=" border-none h-full"
+          class="border-none h-full"
         />
       </div>
     </div>

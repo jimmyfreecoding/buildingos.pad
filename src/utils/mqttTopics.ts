@@ -34,6 +34,14 @@ export const topics = {
   wcSensor: (c: SpaceContext, room: string) =>
     `${IOT_STATUS}/wcsensor/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${room}/#`,
 
+  // --- WC Air Sensor (per toilet room, original protocol) ---
+  toiletAirSensor: (c: SpaceContext, room: string) =>
+    `${IOT_STATUS}/airsensor/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${room}/#`,
+
+  // --- Cleaning Status (保洁打卡记录) ---
+  cleaningStatus: (c: SpaceContext, room: string) =>
+    `${IOT_STATUS}/cleaning/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${room}/#`,
+
   // --- Human Presence Sensor (meeting rooms, per floor) ---
   humanSensorStatus: (c: SpaceContext) =>
     `${IOT_STATUS}/humensensor/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/#`,
