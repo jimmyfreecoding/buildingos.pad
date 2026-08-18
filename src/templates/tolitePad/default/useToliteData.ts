@@ -1,7 +1,7 @@
 import { computed, onScopeDispose, ref } from 'vue'
 import { useSpaceStore } from '@/stores/space'
 import { useMqtt } from '@/utils/useMqtt'
-import { topics } from '@/utils/mqtt'
+import { topics, onConnect } from '@/utils/mqtt'
 
 export interface ToiletAir {
   temperature?: number
@@ -35,6 +35,7 @@ function toNum(v: unknown): number | undefined {
  * - 保洁打卡: /iot/status/cleaning/{space}/{floorarea}/{floor}/{room}/#
  * - 天气 → 背景视频: /wallpad/outside
  * - 其他楼层: 同性别卫生间相邻两层 wcsensor（默认上两层，顶层取下两层）
+ * - 设备配置: 先 publish /iot/setting/get/device 后端才下发数据；响应订阅 /iot/setting/device/{...}/# 与 /iot/status/wcinfo/{...}/#
  */
 export function useToliteData() {
   const spaceStore = useSpaceStore()
@@ -99,6 +100,97 @@ export function useToliteData() {
     const key = seg === 'P' ? 'vip' : seg
     if (key !== 'vip' && !/^\d+$/.test(key)) return null
     return { key, status: raw === 1 || raw === true || raw === 'on' || raw === '1' ? 1 : 0 }
+  }
+
+  // --- 设备配置/wcinfo 响应（后端形状未定，防御式提取厕位总数与状态） ---
+  const WC_ROOM_RE = /^T(MAN|WOMAN)\d*$/i
+
+  const unwrapPayload = (payload: unknown): Record<string, any> | null => {
+    let v: any = payload
+    if (typeof v === 'string') {
+      try { v = JSON.parse(v) } catch { return null }
+    }
+    if (Array.isArray(v)) v = v[0] ?? null
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : null
+  }
+
+  const toStatusNum = (v: unknown): number | null => {
+    if (v === 1 || v === true || v === '1' || v === 'on') return 1
+    if (v === 0 || v === false || v === '0' || v === 'off') return 0
+    return null
+  }
+
+  const findTotal = (o: Record<string, any>): number | undefined => {
+    for (const k of ['total', 'stallTotal', 'wcTotal', 'num', 'stallCount', 'wcCount']) {
+      const n = toNum(o?.[k])
+      if (n !== undefined && n > 0) return Math.floor(n)
+    }
+    for (const k of ['wc', 'wcsensor', 'toilet', 'stalls', 'list']) {
+      if (Array.isArray(o?.[k]) && o[k].length > 0) return o[k].length
+    }
+    for (const k of ['status', 'wc', 'wcsensor', 'toilet', 'data']) {
+      const nested = o?.[k]
+      if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+        const n = findTotal(nested)
+        if (n !== undefined) return n
+      }
+    }
+    return undefined
+  }
+
+  const applyStallStatuses = (o: Record<string, any>, room: string) => {
+    const stalls = stallMap.value[room] ?? (stallMap.value[room] = {})
+    const seen = new Set(Object.keys(stalls))
+    const set = (k: string, v: unknown) => {
+      const s = toStatusNum(v)
+      if (s === null) return
+      const key = k === 'P' ? 'vip' : k
+      if (key !== 'vip' && !/^\d+$/.test(key)) return
+      if (seen.has(key)) return
+      seen.add(key)
+      stalls[key] = s
+    }
+    const st = o?.status && typeof o.status === 'object' && !Array.isArray(o.status) ? o.status : null
+    if (st) for (const [k, v] of Object.entries(st)) set(k, v)
+    for (const k of ['wc', 'wcsensor', 'toilet', 'stalls', 'list']) {
+      const arr = Array.isArray(o?.[k]) ? o[k] : null
+      if (!arr) continue
+      for (const item of arr) {
+        if (!item || typeof item !== 'object') continue
+        const code = item.code ?? item.name ?? item.id ?? item.key
+        if (code === undefined) continue
+        set(String(code), item.status?.status ?? item.status ?? item.occupied)
+      }
+    }
+  }
+
+  const roomFromTopic = (topic: string) => topic.slice(topic.lastIndexOf('/') + 1)
+
+  const handleWcInfoMessage = (payload: unknown, topic: string) => {
+    const room = roomFromTopic(topic)
+    if (!WC_ROOM_RE.test(room)) return
+    const data = unwrapPayload(payload)
+    if (!data) return
+    const total = findTotal(data)
+    if (total !== undefined) {
+      totalMap.value[room] = total
+      console.log('[tolitePad] wcinfo total:', room, total)
+    }
+    applyStallStatuses(data, room)
+  }
+
+  const handleConfigMessage = (payload: unknown, topic: string) => {
+    const room = roomFromTopic(topic)
+    if (!WC_ROOM_RE.test(room)) return
+    const data = unwrapPayload(payload)
+    if (!data) return
+    console.log('[tolitePad] device config:', topic, JSON.stringify(data))
+    const total = findTotal(data)
+    if (total !== undefined) {
+      totalMap.value[room] = total
+      console.log('[tolitePad] config total:', room, total)
+    }
+    applyStallStatuses(data, room)
   }
 
   const handleWcMessage = (room: string, payload: unknown, topic: string) => {
@@ -210,11 +302,40 @@ export function useToliteData() {
     }
   }
 
+  // 原项目协议：挂载后先 publish /iot/setting/get/device，后端才下发设备数据
+  const requestConfig = () => {
+    if (disposed || !ctx.value) return
+    const c = ctx.value
+    for (const room of Array.from(new Set([boundRoom, 'TMAN', 'TWOMAN']))) {
+      mqtt.publish(topics.deviceConfigGet(), {
+        spaceCode: c.spaceCode,
+        floorAreaCode: c.floorAreaCode,
+        floorCode: c.floorCode,
+        areaCode: room,
+      })
+    }
+  }
+
   const unsubs: Array<() => void> = []
   const setup = () => {
     if (!ctx.value || unsubs.length > 0) return
     const c = ctx.value
     const rooms = Array.from(new Set([boundRoom, 'TMAN', 'TWOMAN']))
+
+    // 设备配置响应（含厕位总数/初始状态）与厕位信息 wcinfo
+    const cfgTopic = topics.deviceConfigAll(c)
+    mqtt.subscribe(cfgTopic)
+    unsubs.push(() => mqtt.unsubscribe(cfgTopic))
+    unsubs.push(mqtt.onMessage(cfgTopic, (payload, topic) => handleConfigMessage(payload, topic)))
+
+    const wcInfoTopic = topics.wcInfoAll(c)
+    mqtt.subscribe(wcInfoTopic)
+    unsubs.push(() => mqtt.unsubscribe(wcInfoTopic))
+    unsubs.push(mqtt.onMessage(wcInfoTopic, (payload, topic) => handleWcInfoMessage(payload, topic)))
+
+    // 未连接时 publish 会被丢弃，重连后重新请求
+    requestConfig()
+    unsubs.push(onConnect(() => { if (!disposed) requestConfig() }))
 
     for (const room of rooms) {
       const wcTopic = topics.wcSensor(c, room)
@@ -263,6 +384,7 @@ export function useToliteData() {
   const activeRoom = computed(() => {
     const hasData = (r: string) =>
       Object.keys(stallMap.value[r] ?? {}).length > 0 ||
+      (totalMap.value[r] ?? 0) > 0 ||
       airMap.value[r] !== undefined ||
       cleaningMap.value[r] !== undefined
     if (hasData(boundRoom)) return boundRoom

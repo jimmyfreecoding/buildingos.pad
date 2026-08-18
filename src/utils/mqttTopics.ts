@@ -34,6 +34,12 @@ export const topics = {
   wcSensor: (c: SpaceContext, room: string) =>
     `${IOT_STATUS}/wcsensor/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${room}/#`,
 
+  // --- WC Info (厕位配置，原项目 /iot/status/wcinfo/.../{room}) ---
+  wcInfo: (c: SpaceContext, room: string) =>
+    `${IOT_STATUS}/wcinfo/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${room}`,
+  wcInfoAll: (c: SpaceContext) =>
+    `${IOT_STATUS}/wcinfo/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/#`,
+
   // --- WC Air Sensor (per toilet room, original protocol) ---
   toiletAirSensor: (c: SpaceContext, room: string) =>
     `${IOT_STATUS}/airsensor/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${room}/#`,
@@ -106,4 +112,6 @@ export const topics = {
   deviceConfigGet: () => '/iot/setting/get/device',
   deviceConfigResponse: (c: SpaceContext) =>
     `/iot/setting/device/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${c.deviceCode}`,
+  deviceConfigAll: (c: SpaceContext) =>
+    `/iot/setting/device/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/#`,
 } as const
