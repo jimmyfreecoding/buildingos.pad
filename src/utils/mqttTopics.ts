@@ -33,6 +33,9 @@ export const topics = {
   // --- WC Occupancy Sensor ---
   wcSensor: (c: SpaceContext, room: string) =>
     `${IOT_STATUS}/wcsensor/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${room}/#`,
+  // 楼层级通配：一次订阅覆盖该层所有卫生间（topic: .../wcsensor/{space}/{area}/{floor}/{room}/{stall}）
+  wcSensorFloor: (c: SpaceContext) =>
+    `${IOT_STATUS}/wcsensor/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/#`,
 
   // --- WC Info (厕位配置，原项目 /iot/status/wcinfo/.../{room}) ---
   wcInfo: (c: SpaceContext, room: string) =>

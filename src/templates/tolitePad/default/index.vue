@@ -1,23 +1,21 @@
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useCockpitStore } from '@/stores/cockpit'
 import AppBackground from '@/components/AppBackground.vue'
-import AppLogo from '@/components/AppLogo.vue'
 import TimeWidget from '@/components/TimeWidget.vue'
 import BaseCard from '@/components/BaseCard.vue'
 import QualityCard from '@/components/QualityCard.vue'
 import { useToliteData } from './useToliteData'
 
 const router = useRouter()
-const store = useCockpitStore()
 const { floorName, roomName, activeRoom, stallRows, nearbyList, airDisplay, cleaningDisplay, bgVideo } = useToliteData()
 
-// 背景：MQTT 天气视频，未收到天气消息时使用默认视频
-const background = computed(() => ({
-  type: 'video' as const,
-  src: bgVideo.value || store.background.src,
-}))
+const logoUrl = new URL('./assets/images/geely.png', import.meta.url).href
+
+// 背景：收到天气消息才显示视频（70% 遮罩），否则保持深色纯色背景
+const background = computed(() =>
+  bgVideo.value ? { type: 'video' as const, src: bgVideo.value } : null,
+)
 
 // Logo 三击 → /init（密码页）
 const logoTapCount = ref(0)
@@ -37,11 +35,11 @@ onUnmounted(() => { if (logoTapTimer) clearTimeout(logoTapTimer) })
 const genderLabel = computed(() => {
   const r = activeRoom.value
   if (/^T(MAN|WOMAN)\d*$/i.test(r)) return r.startsWith('TWOMAN') ? '女卫生间' : '男卫生间'
-  return roomName.includes('女') ? '女卫生间' : '男卫生间'
+  return roomName.value.includes('女') ? '女卫生间' : '男卫生间'
 })
 
 // 标题直接显示绑定卫生间的名称（如 "2F北女卫"）
-const title = computed(() => roomName || `${floorLabel.value} ${genderLabel.value}`)
+const title = computed(() => roomName.value || `${floorLabel.value} ${genderLabel.value}`)
 const floorLabel = computed(() => floorName || '—')
 
 // 厕位 dot：0 空闲(绿) / 1 占用(红) / null 未知(灰)
@@ -106,11 +104,13 @@ const metrics = computed(() => {
 </script>
 
 <template>
-  <AppBackground :type="background.type" :src="background.src" />
+  <AppBackground v-if="background" :type="background.type" :src="background.src" :overlay-opacity="0.7" />
   <div class="relative z-10 w-full h-full text-white flex flex-col p-6 box-border overflow-hidden">
 
     <header class="flex justify-between items-start px-2 shrink-0 mb-4">
-      <AppLogo @click="onLogoClick" />
+      <div class="w-[15%] shrink-0">
+        <img :src="logoUrl" class="w-full h-auto cursor-pointer select-none" @click="onLogoClick" />
+      </div>
       <TimeWidget />
     </header>
 

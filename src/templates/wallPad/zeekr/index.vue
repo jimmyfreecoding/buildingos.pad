@@ -206,6 +206,8 @@ const floorImg = new URL('./assets/images/floor.jpg', import.meta.url).href
         <img v-if="bgParams.type === 'image'" :src="bg1" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;" />
         <BgVideo v-if="bgParams.type === 'video'" style="position:absolute;left:0;top:0;height:100%;width:100%;" :bg-urls="bgParams.urls"></BgVideo>
         <div class="bg-shdow"></div>
+        <!-- 视频背景遮罩层（70%） -->
+        <div v-if="bgParams.type === 'video'" style="position:absolute;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:0;"></div>
 
         <!-- 顶部栏 -->
         <div style="position:absolute;top:0;width:100%;padding:80px 100px;z-index:1;" class="flex-row justify-between">
