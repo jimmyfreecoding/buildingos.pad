@@ -141,13 +141,27 @@ export function useToliteData() {
         const code = o?.code
         const name = o?.name
         if (typeof code !== 'string' || !code) continue
-        if (!/厕位|传感器|WC/i.test(`${String(name ?? '')}${code}`)) continue
+        const label = `${String(name ?? '')}${code}`
+        if (!/厕位|传感器|WC/i.test(label)) continue
+        // 烟雾传感器不算厕位（部分房间 SMOKE 设备被错标 type=wcsensor）
+        if (/烟雾|SMOKE/i.test(label)) continue
         const key = stallNumOf(name) ?? String(idx + 1)
         map[code] = key
         idx++
       }
     }
     for (const k of ['wcsensor', 'wc', 'toilet', 'sensor', 'sensors', 'stalls', 'list', 'devices', 'device']) collect(data[k])
+  }
+
+  // 厕位总数：传感器索引里数字编号去重后的个数（烟雾等杂项已被过滤）
+  const distinctStallCount = (room: string): number => {
+    const map = sensorIndexMap.value[room]
+    if (!map) return 0
+    const keys = new Set<string>()
+    for (const k of Object.values(map)) {
+      if (k !== 'vip' && /^\d+$/.test(k)) keys.add(k)
+    }
+    return keys.size
   }
 
   // payload 首项的设备 code（wcsensor 消息按它对齐设备配置里的传感器）
@@ -236,6 +250,14 @@ export function useToliteData() {
     return undefined
   }
 
+  // 房间厕位总数：优先传感器索引的去重编号数（已排除烟雾），其次响应里的显式 total
+  const applyTotal = (room: string, data: Record<string, any>): number | undefined => {
+    const distinct = distinctStallCount(room)
+    const val = distinct > 0 ? distinct : findTotal(data)
+    if (val !== undefined && val > 0) totalMap.value[room] = val
+    return val
+  }
+
   const applyStallStatuses = (o: Record<string, any>, target: Record<string, number>) => {
     const seen = new Set(Object.keys(target))
     const set = (k: string, v: unknown) => {
@@ -273,13 +295,10 @@ export function useToliteData() {
     if (!rooms.includes(room) && !nearbyToilets.value.some((t) => t.code === room)) return
     const data = unwrapPayload(payload)
     if (!data) return
-    const total = findTotal(data)
-    if (total !== undefined) {
-      totalMap.value[room] = total
-      console.log('[tolitePad] wcinfo total:', room, total)
-    }
     buildSensorIndex(room, data)
     applyStallStatuses(data, stallTarget(room))
+    const total = applyTotal(room, data)
+    if (total !== undefined) console.log('[tolitePad] wcinfo total:', room, total)
   }
 
   const handleConfigMessage = (payload: unknown, topic: string) => {
@@ -292,13 +311,10 @@ export function useToliteData() {
     console.log('[tolitePad] device config:', topic, data)
     const name = data.name ?? data.roomName ?? data.toiletName
     if (typeof name === 'string' && name && room === boundRoom) configName.value = name
-    const total = findTotal(data)
-    if (total !== undefined) {
-      totalMap.value[room] = total
-      console.log('[tolitePad] config total:', room, total)
-    }
     buildSensorIndex(room, data)
     applyStallStatuses(data, stallTarget(room))
+    const total = applyTotal(room, data)
+    if (total !== undefined) console.log('[tolitePad] config total:', room, total)
   }
 
   // wcsensor 楼层通配消息：/iot/status/wcsensor/{space}/{area}/{floor}/{room}/{stall?}
@@ -307,6 +323,8 @@ export function useToliteData() {
     const room = segs[7] ?? ''
     const stallSeg = segs[8] ?? ''
     if (!room) return
+    // 烟雾传感器消息不算厕位状态（部分房间 SMOKE 设备被错标 type=wcsensor）
+    if (/烟雾/.test(stallSeg)) return
 
     // 聚合计数（{occupied,total}）只定数量，状态以逐厕位消息为准
     if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
@@ -318,6 +336,7 @@ export function useToliteData() {
 
     // 每厕位一条：优先 payload.code 对齐设备配置的传感器编号，其次 topic 末段编号
     const code = firstItemCode(payload)
+    if (code && /烟雾|SMOKE/i.test(code)) return
     const stallKey = (code && sensorIndexMap.value[room]?.[code]) || stallNumOf(stallSeg)
     if (stallKey) {
       const item = parseStallItems(payload)[0]
@@ -333,8 +352,21 @@ export function useToliteData() {
       return
     }
 
-    // 整间一条：按 code 逐项应用
-    for (const { key, status } of parseStallItems(payload)) target[key] = status
+    // 整间一条：设备 code 优先经传感器索引映射厕位号，烟雾设备忽略
+    const arr = Array.isArray(payload) ? payload : []
+    for (const item of arr) {
+      if (!item || typeof item !== 'object') continue
+      const o = item as Record<string, any>
+      const s = toStatusNum(o?.status?.status ?? o?.status)
+      if (s === null) continue
+      const rawCode = o?.code ?? o?.id ?? o?.key
+      if (rawCode === undefined) continue
+      const raw = String(rawCode)
+      if (/烟雾|SMOKE/i.test(raw)) continue
+      const key = sensorIndexMap.value[room]?.[raw] ?? stallNumOf(raw)
+      if (!key) continue
+      target[key] = s
+    }
   }
 
   const handleAirMessage = (room: string, payload: unknown) => {
