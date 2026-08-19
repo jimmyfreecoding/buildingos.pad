@@ -34,8 +34,8 @@ function toNum(v: unknown): number | undefined {
  * - 空气传感器: /iot/status/airsensor/{space}/{floorarea}/{floor}/{room}/#
  * - 保洁打卡: /iot/status/cleaning/{space}/{floorarea}/{floor}/{room}/#
  * - 天气 → 背景视频: /wallpad/outside
- * - 其他楼层: 同性别卫生间相邻两层 wcsensor（默认上两层，顶层取下两层）
- * - 设备配置: 先 publish /iot/setting/get/device 后端才下发数据；响应订阅 /iot/setting/device/{...}/# 与 /iot/status/wcinfo/{...}/#
+ * - 附近卫生间: 当前楼层同性卫生间（可能多个）+ 邻层最近一个，按各自 code 订阅
+ * - 设备配置: 先 publish /iot/setting/get/device 后端才下发数据；响应订阅 /iot/setting/device/{...}/{room} 与 /iot/status/wcinfo/{...}/{room} 精确主题
  */
 export function useToliteData() {
   const spaceStore = useSpaceStore()
@@ -47,11 +47,17 @@ export function useToliteData() {
   const roomName = String(init.roomName || init.name || '')
   const roomCode = String(init.roomCode || init.roomId || '')
 
-  // 绑定 code 形如 TMAN/TWOMAN/TMAN1… 时直接使用，否则按名称男女推断
-  const boundRoom = /^T(MAN|WOMAN)\d*$/i.test(roomCode)
-    ? roomCode
-    : (roomName.includes('女') ? 'TWOMAN' : 'TMAN')
+  // TMAN/TWOMAN 惯例建筑直接用 code；其他建筑（如 SMART 楼 code 为真实结构编码）用绑定 code，
+  // 不再强制替换成 TMAN/TWOMAN，否则订阅和请求的主题都不对
+  const isTConvention = /^T(MAN|WOMAN)\d*$/i.test(roomCode)
+  const boundRoom = roomCode || (roomName.includes('女') ? 'TWOMAN' : 'TMAN')
   const fallbackRoom = roomName.includes('女') ? 'TWOMAN' : 'TMAN'
+  // 参与订阅/请求的房间：非 T 惯例建筑只针对绑定卫生间
+  const rooms = isTConvention || !roomCode
+    ? Array.from(new Set([boundRoom, 'TMAN', 'TWOMAN']))
+    : [boundRoom]
+
+  console.log('[tolitePad] binding:', { floorName, roomName, roomCode, boundRoom, rooms })
 
   // --- 厕位状态（key: 房间 → { 厕位编号: 0空闲/1占用 }） ---
   const stallMap = ref<Record<string, Record<string, number>>>({})
@@ -61,9 +67,10 @@ export function useToliteData() {
   const airMap = ref<Record<string, ToiletAir>>({})
   // --- 保洁信息 ---
   const cleaningMap = ref<Record<string, CleaningInfo>>({})
-  // --- 其他楼层厕位（key: 楼层标签如 "2F" → { 厕位编号: 0/1 }） ---
+  // --- 附近卫生间厕位（key: 卫生间 code → { 厕位编号: 0/1 }） ---
   const otherStallMap = ref<Record<string, Record<string, number>>>({})
-  const neighborFloors = ref<Array<{ label: string; code: string }>>([])
+  // --- 附近卫生间列表：当前楼层同性卫生间（排除绑定）+ 邻层最近的一个 ---
+  const nearbyToilets = ref<Array<{ name: string; code: string; floorCode: string; floorLabel: string }>>([])
   const neighborUnsubs: Array<() => void> = []
   let disposed = false
 
@@ -103,8 +110,6 @@ export function useToliteData() {
   }
 
   // --- 设备配置/wcinfo 响应（后端形状未定，防御式提取厕位总数与状态） ---
-  const WC_ROOM_RE = /^T(MAN|WOMAN)\d*$/i
-
   const unwrapPayload = (payload: unknown): Record<string, any> | null => {
     let v: any = payload
     if (typeof v === 'string') {
@@ -138,9 +143,8 @@ export function useToliteData() {
     return undefined
   }
 
-  const applyStallStatuses = (o: Record<string, any>, room: string) => {
-    const stalls = stallMap.value[room] ?? (stallMap.value[room] = {})
-    const seen = new Set(Object.keys(stalls))
+  const applyStallStatuses = (o: Record<string, any>, target: Record<string, number>) => {
+    const seen = new Set(Object.keys(target))
     const set = (k: string, v: unknown) => {
       const s = toStatusNum(v)
       if (s === null) return
@@ -148,7 +152,7 @@ export function useToliteData() {
       if (key !== 'vip' && !/^\d+$/.test(key)) return
       if (seen.has(key)) return
       seen.add(key)
-      stalls[key] = s
+      target[key] = s
     }
     const st = o?.status && typeof o.status === 'object' && !Array.isArray(o.status) ? o.status : null
     if (st) for (const [k, v] of Object.entries(st)) set(k, v)
@@ -166,9 +170,14 @@ export function useToliteData() {
 
   const roomFromTopic = (topic: string) => topic.slice(topic.lastIndexOf('/') + 1)
 
+  const stallTarget = (room: string): Record<string, number> => {
+    if (rooms.includes(room)) return stallMap.value[room] ?? (stallMap.value[room] = {})
+    return otherStallMap.value[room] ?? (otherStallMap.value[room] = {})
+  }
+
   const handleWcInfoMessage = (payload: unknown, topic: string) => {
     const room = roomFromTopic(topic)
-    if (!WC_ROOM_RE.test(room)) return
+    if (!rooms.includes(room) && !nearbyToilets.value.some((t) => t.code === room)) return
     const data = unwrapPayload(payload)
     if (!data) return
     const total = findTotal(data)
@@ -176,21 +185,23 @@ export function useToliteData() {
       totalMap.value[room] = total
       console.log('[tolitePad] wcinfo total:', room, total)
     }
-    applyStallStatuses(data, room)
+    applyStallStatuses(data, stallTarget(room))
   }
 
   const handleConfigMessage = (payload: unknown, topic: string) => {
     const room = roomFromTopic(topic)
-    if (!WC_ROOM_RE.test(room)) return
+    if (!rooms.includes(room) && !nearbyToilets.value.some((t) => t.code === room)) return
+    // 后端已响应即不再重复请求（进入页面只请求一次）
+    configAnswered.add(room)
     const data = unwrapPayload(payload)
     if (!data) return
-    console.log('[tolitePad] device config:', topic, JSON.stringify(data))
+    console.log('[tolitePad] device config:', topic, data)
     const total = findTotal(data)
     if (total !== undefined) {
       totalMap.value[room] = total
       console.log('[tolitePad] config total:', room, total)
     }
-    applyStallStatuses(data, room)
+    applyStallStatuses(data, stallTarget(room))
   }
 
   const handleWcMessage = (room: string, payload: unknown, topic: string) => {
@@ -209,10 +220,10 @@ export function useToliteData() {
     }
   }
 
-  const handleOtherWcMessage = (floorLabel: string, payload: unknown, topic: string) => {
+  const handleOtherWcMessage = (code: string, payload: unknown, topic: string) => {
     const parsed = parseStallMessage(payload, topic)
     if (!parsed) return
-    const map = otherStallMap.value[floorLabel] ?? (otherStallMap.value[floorLabel] = {})
+    const map = otherStallMap.value[code] ?? (otherStallMap.value[code] = {})
     map[parsed.key] = parsed.status
   }
 
@@ -248,42 +259,51 @@ export function useToliteData() {
     }
   }
 
-  // --- 其他楼层（同性别，默认上两层；顶层取下两层） ---
+  // --- 附近卫生间：优先当前楼层同性卫生间，再取邻层最近的一个同性卫生间 ---
   const parseFloorNum = (v: unknown) => {
     const n = parseInt(String(v ?? '').replace(/\D/g, ''), 10)
     return Number.isFinite(n) ? n : NaN
   }
   const floorSeg = (n: number) => `${n}F`
+  const isWomen = roomName.includes('女')
+  const sameGender = (name: string) => (isWomen ? name.includes('女') : name.includes('男'))
 
-  const findNeighborFloors = (): Array<{ label: string; code: string }> => {
+  const findNearbyToilets = (): Array<{ name: string; code: string; floorCode: string; floorLabel: string }> => {
     const c = ctx.value
     if (!c) return []
-    const num = parseFloorNum(c.floorCode)
-    if (Number.isNaN(num)) return []
-    // 结构数据可用时按当前区域楼层列表判断（顶层 → 下两层），否则默认上两层
+    const list: Array<{ name: string; code: string; floorCode: string; floorLabel: string }> = []
     for (const space of spaceStore.structure) {
       const area = (space.floorArea ?? []).find((fa) => String(fa.code ?? '') === String(c.floorAreaCode))
       if (!area) continue
-      const floors = (area.floor ?? []).map((f) => ({
-        code: String(f.code ?? ''),
-        num: parseFloorNum(f.code ?? f.name),
-      }))
-      const idx = floors.findIndex((f) => f.num === num)
-      if (idx < 0) continue
-      const isTop = idx === floors.length - 1
-      const pick = isTop ? [idx - 2, idx - 1] : [idx + 1, idx + 2]
-      return pick
-        .filter((i) => i >= 0 && i < floors.length)
-        .map((i) => {
-          const n = Number.isNaN(floors[i].num) ? num + (i - idx) : floors[i].num
-          const seg = floorSeg(n)
-          return { label: seg, code: /^\d+F$/i.test(floors[i].code) ? floors[i].code : seg }
+      const floors = area.floor ?? []
+      const curIdx = floors.findIndex((f) => String(f.code ?? '') === String(c.floorCode))
+      if (curIdx < 0) continue
+      const cur = floors[curIdx]
+      // 当前楼层同性卫生间（排除绑定房间本身）
+      for (const t of cur.toilet ?? []) {
+        if (!t.code || !sameGender(t.name) || String(t.code) === boundRoom) continue
+        list.push({ name: t.name, code: String(t.code), floorCode: String(c.floorCode), floorLabel: '' })
+      }
+      // 邻层最近的一个同性卫生间（同距离优先上层）
+      const byDist = floors
+        .map((f, i) => ({ f, i, n: parseFloorNum(f.code ?? f.name) }))
+        .filter((x) => x.i !== curIdx)
+        .sort((a, b) => {
+          const da = Math.abs(a.i - curIdx)
+          const db = Math.abs(b.i - curIdx)
+          if (da !== db) return da - db
+          return (b.i - curIdx) - (a.i - curIdx)
         })
+      for (const x of byDist) {
+        const t = (x.f.toilet ?? []).find((tt) => tt.code && sameGender(tt.name))
+        if (!t) continue
+        const fl = /^\d+F$/i.test(String(x.f.code ?? '')) ? String(x.f.code) : floorSeg(x.n)
+        list.push({ name: t.name, code: String(t.code), floorCode: String(x.f.code ?? fl), floorLabel: fl })
+        break
+      }
+      break
     }
-    return [
-      { label: floorSeg(num + 1), code: floorSeg(num + 1) },
-      { label: floorSeg(num + 2), code: floorSeg(num + 2) },
-    ]
+    return list
   }
 
   const applyNeighbors = () => {
@@ -292,26 +312,45 @@ export function useToliteData() {
     if (disposed) return
     const c = ctx.value
     if (!c) return
-    const floors = findNeighborFloors()
-    neighborFloors.value = floors
-    for (const f of floors) {
-      const topic = topics.wcSensor({ ...c, floorCode: f.code }, boundRoom)
-      mqtt.subscribe(topic)
-      neighborUnsubs.push(() => mqtt.unsubscribe(topic))
-      neighborUnsubs.push(mqtt.onMessage(topic, (payload, t) => handleOtherWcMessage(f.label, payload, t)))
+    const list = findNearbyToilets()
+    nearbyToilets.value = list
+    for (const t of list) {
+      const sc = { ...c, floorCode: t.floorCode }
+      const wcTopic = topics.wcSensor(sc, t.code)
+      mqtt.subscribe(wcTopic)
+      neighborUnsubs.push(() => mqtt.unsubscribe(wcTopic))
+      neighborUnsubs.push(mqtt.onMessage(wcTopic, (payload, topic) => handleOtherWcMessage(t.code, payload, topic)))
+
+      const cfgTopic = topics.deviceConfigResponse({ ...sc, deviceCode: t.code })
+      mqtt.subscribe(cfgTopic)
+      neighborUnsubs.push(() => mqtt.unsubscribe(cfgTopic))
+      neighborUnsubs.push(mqtt.onMessage(cfgTopic, (payload, topic) => handleConfigMessage(payload, topic)))
+
+      const infoTopic = topics.wcInfo(sc, t.code)
+      mqtt.subscribe(infoTopic)
+      neighborUnsubs.push(() => mqtt.unsubscribe(infoTopic))
+      neighborUnsubs.push(mqtt.onMessage(infoTopic, (payload, topic) => handleWcInfoMessage(payload, topic)))
     }
+    requestConfig()
   }
 
-  // 原项目协议：挂载后先 publish /iot/setting/get/device，后端才下发设备数据
+  // 原项目协议：挂载后先 publish /iot/setting/get/device，后端才下发设备数据。
+  // 每个房间只在进入页面时请求一次（后端响应过就不再重发）
+  const configAnswered = new Set<string>()
   const requestConfig = () => {
     if (disposed || !ctx.value) return
     const c = ctx.value
-    for (const room of Array.from(new Set([boundRoom, 'TMAN', 'TWOMAN']))) {
+    const targets = [
+      ...rooms.map((r) => ({ code: r, floorCode: c.floorCode })),
+      ...nearbyToilets.value.map((t) => ({ code: t.code, floorCode: t.floorCode })),
+    ]
+    for (const t of targets) {
+      if (configAnswered.has(t.code)) continue
       mqtt.publish(topics.deviceConfigGet(), {
         spaceCode: c.spaceCode,
         floorAreaCode: c.floorAreaCode,
-        floorCode: c.floorCode,
-        areaCode: room,
+        floorCode: t.floorCode,
+        areaCode: t.code,
       })
     }
   }
@@ -320,20 +359,21 @@ export function useToliteData() {
   const setup = () => {
     if (!ctx.value || unsubs.length > 0) return
     const c = ctx.value
-    const rooms = Array.from(new Set([boundRoom, 'TMAN', 'TWOMAN']))
 
-    // 设备配置响应（含厕位总数/初始状态）与厕位信息 wcinfo
-    const cfgTopic = topics.deviceConfigAll(c)
-    mqtt.subscribe(cfgTopic)
-    unsubs.push(() => mqtt.unsubscribe(cfgTopic))
-    unsubs.push(mqtt.onMessage(cfgTopic, (payload, topic) => handleConfigMessage(payload, topic)))
+    // 设备配置响应与厕位信息 wcinfo：只订阅精确主题，避免收到其他 pad 请求的响应刷屏
+    for (const room of rooms) {
+      const cfgTopic = topics.deviceConfigResponse({ ...c, deviceCode: room })
+      mqtt.subscribe(cfgTopic)
+      unsubs.push(() => mqtt.unsubscribe(cfgTopic))
+      unsubs.push(mqtt.onMessage(cfgTopic, (payload, topic) => handleConfigMessage(payload, topic)))
 
-    const wcInfoTopic = topics.wcInfoAll(c)
-    mqtt.subscribe(wcInfoTopic)
-    unsubs.push(() => mqtt.unsubscribe(wcInfoTopic))
-    unsubs.push(mqtt.onMessage(wcInfoTopic, (payload, topic) => handleWcInfoMessage(payload, topic)))
+      const wcInfoTopic = topics.wcInfo(c, room)
+      mqtt.subscribe(wcInfoTopic)
+      unsubs.push(() => mqtt.unsubscribe(wcInfoTopic))
+      unsubs.push(mqtt.onMessage(wcInfoTopic, (payload, topic) => handleWcInfoMessage(payload, topic)))
+    }
 
-    // 未连接时 publish 会被丢弃，重连后重新请求
+    // 未连接时 publish 会被丢弃，重连后重新请求（已响应的房间跳过）
     requestConfig()
     unsubs.push(onConnect(() => { if (!disposed) requestConfig() }))
 
@@ -382,6 +422,8 @@ export function useToliteData() {
 
   // --- 当前展示房间（优先绑定房间，其次按男女，最后谁有数据用谁） ---
   const activeRoom = computed(() => {
+    // 非 T 惯例建筑固定显示绑定卫生间
+    if (!isTConvention && roomCode) return boundRoom
     const hasData = (r: string) =>
       Object.keys(stallMap.value[r] ?? {}).length > 0 ||
       (totalMap.value[r] ?? 0) > 0 ||
@@ -431,18 +473,28 @@ export function useToliteData() {
     ]
   })
 
-  // --- 其他楼层展示（同性别厕位，vip 计入空闲数） ---
-  const otherFloorList = computed(() =>
-    neighborFloors.value.map((f) => {
-      const map = otherStallMap.value[f.label] ?? {}
-      const statuses = Object.entries(map)
-        .filter(([k, v]) => k !== 'vip' && (v === 0 || v === 1))
-        .sort((a, b) => Number(a[0]) - Number(b[0]))
-        .map(([, v]) => v)
+  // --- 附近卫生间展示（状态未到显示灰色未知 null，vip 计入空闲数） ---
+  const nearbyList = computed(() =>
+    nearbyToilets.value.map((t) => {
+      const map = otherStallMap.value[t.code] ?? {}
+      const nums = Object.keys(map)
+        .filter((k) => k !== 'vip' && /^\d+$/.test(k))
+        .map(Number)
+        .sort((a, b) => a - b)
+      const count = Math.max(
+        totalMap.value[t.code] ?? 0,
+        nums.length > 0 ? nums[nums.length - 1] : 0,
+      )
+      const statuses: (number | null)[] = []
+      for (let i = 1; i <= count; i++) {
+        const v = map[String(i)]
+        statuses.push(v === 0 || v === 1 ? v : null)
+      }
       const vip = map['vip']
       const vipStatus = vip === 0 || vip === 1 ? vip : null
       const free = statuses.filter((v) => v === 0).length + (vipStatus === 0 ? 1 : 0)
-      return { label: f.label, free, statuses, vip: vipStatus }
+      const label = t.floorLabel && !t.name.includes(t.floorLabel) ? `${t.floorLabel}-${t.name}` : t.name
+      return { label, free, statuses, vip: vipStatus }
     })
   )
 
@@ -481,7 +533,7 @@ export function useToliteData() {
     activeRoom,
     stalls,
     stallRows,
-    otherFloorList,
+    nearbyList,
     airDisplay,
     cleaningDisplay,
     bgVideo,

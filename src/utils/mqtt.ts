@@ -84,7 +84,9 @@ function doConnect(): void {
   client.on('message', (topic: string, payload: Buffer) => {
     const raw = payload.toString()
     const matched = router.dispatch(topic, payload)
-    console.log(`[MQTT] Message${matched ? '' : ' (NO HANDLER)'} ${topic}:`, raw.length > 300 ? `${raw.slice(0, 300)}…` : raw)
+    let parsed: unknown = raw
+    try { parsed = JSON.parse(raw) } catch { /* 非 JSON 保留原文 */ }
+    console.log(`[MQTT] Message${matched ? '' : ' (NO HANDLER)'} ${topic}:`, parsed)
   })
 }
 

@@ -3,6 +3,7 @@ import { ref, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCockpitStore } from '@/stores/cockpit'
 import AppBackground from '@/components/AppBackground.vue'
+import AppLogo from '@/components/AppLogo.vue'
 import TimeWidget from '@/components/TimeWidget.vue'
 import BaseCard from '@/components/BaseCard.vue'
 import QualityCard from '@/components/QualityCard.vue'
@@ -10,9 +11,7 @@ import { useToliteData } from './useToliteData'
 
 const router = useRouter()
 const store = useCockpitStore()
-const { floorName, activeRoom, stallRows, otherFloorList, airDisplay, cleaningDisplay, bgVideo } = useToliteData()
-
-const logoUrl = new URL('./assets/images/geely.png', import.meta.url).href
+const { floorName, roomName, activeRoom, stallRows, nearbyList, airDisplay, cleaningDisplay, bgVideo } = useToliteData()
 
 // 背景：MQTT 天气视频，未收到天气消息时使用默认视频
 const background = computed(() => ({
@@ -35,7 +34,14 @@ const onLogoClick = () => {
 }
 onUnmounted(() => { if (logoTapTimer) clearTimeout(logoTapTimer) })
 
-const genderLabel = computed(() => (activeRoom.value.startsWith('TWOMAN') ? '女卫生间' : '男卫生间'))
+const genderLabel = computed(() => {
+  const r = activeRoom.value
+  if (/^T(MAN|WOMAN)\d*$/i.test(r)) return r.startsWith('TWOMAN') ? '女卫生间' : '男卫生间'
+  return roomName.includes('女') ? '女卫生间' : '男卫生间'
+})
+
+// 标题直接显示绑定卫生间的名称（如 "2F北女卫"）
+const title = computed(() => roomName || `${floorLabel.value} ${genderLabel.value}`)
 const floorLabel = computed(() => floorName || '—')
 
 // 厕位 dot：0 空闲(绿) / 1 占用(红) / null 未知(灰)
@@ -104,7 +110,7 @@ const metrics = computed(() => {
   <div class="relative z-10 w-full h-full text-white flex flex-col p-6 box-border overflow-hidden">
 
     <header class="flex justify-between items-start px-2 shrink-0 mb-4">
-      <img :src="logoUrl" class="h-12 w-auto cursor-pointer select-none" @click="onLogoClick" />
+      <AppLogo @click="onLogoClick" />
       <TimeWidget />
     </header>
 
@@ -113,26 +119,26 @@ const metrics = computed(() => {
         <div class="col-span-3 flex flex-col gap-6 h-full min-h-0">
           <BaseCard title="最近保洁时间" class="h-[35%] border-none shrink-0 flex flex-col">
             <div class="flex-1 flex flex-col justify-center mt-2">
-              <div class="text-[clamp(2.5rem,4vw,3.75rem)] font-medium tracking-tight mb-2 leading-none">{{ cleaningTime }}</div>
+              <div class="text-[clamp(1.75rem,2.5vw,2.25rem)] font-medium tracking-tight mb-2 leading-none">{{ cleaningTime }}</div>
               <div class="text-lg text-white/50">{{ cleaningDate }}</div>
             </div>
           </BaseCard>
 
-          <BaseCard title="其他楼层" class="h-[65%] border-none min-h-0 flex flex-col">
+          <BaseCard title="附近卫生间" class="h-[65%] border-none min-h-0 flex flex-col">
             <div class="flex-1 flex flex-col gap-6 justify-center mt-2">
-              <div v-for="floor in otherFloorList" :key="floor.label" class="flex items-center justify-start">
-                <span class="text-[clamp(1rem,1.5vw,1.25rem)] text-white/80 font-medium whitespace-nowrap mr-2 xl:mr-4">{{ floor.label }}-空闲{{ floor.free }}</span>
+              <div v-for="toilet in nearbyList" :key="toilet.label" class="flex items-center justify-start">
+                <span class="text-[clamp(1rem,1.5vw,1.25rem)] text-white/80 font-medium whitespace-nowrap mr-2 xl:mr-4">{{ toilet.label }}-空闲{{ toilet.free }}</span>
                 <div class="flex gap-1.5 xl:gap-2 items-center flex-wrap">
                   <div
-                    v-for="(status, idx) in floor.statuses"
+                    v-for="(status, idx) in toilet.statuses"
                     :key="idx"
                     class="w-[clamp(0.625rem,0.9vw,0.875rem)] h-[clamp(0.625rem,0.9vw,0.875rem)] rounded-full shrink-0"
                     :class="stallColor(status)"
                   ></div>
                   <div
-                    v-if="floor.vip !== null"
+                    v-if="toilet.vip !== null"
                     class="w-[clamp(0.625rem,0.9vw,0.875rem)] h-[clamp(0.625rem,0.9vw,0.875rem)] rounded-full shrink-0"
-                    :class="stallColor(floor.vip)"
+                    :class="stallColor(toilet.vip)"
                   ></div>
                 </div>
               </div>
@@ -146,7 +152,7 @@ const metrics = computed(() => {
               <div class="absolute top-1/2 left-0 w-full h-64 -translate-y-1/2 bg-gradient-to-r from-transparent via-blue-500/20 to-transparent blur-3xl transform rotate-12"></div>
               <div class="absolute top-1/2 left-0 w-full h-64 -translate-y-1/2 bg-gradient-to-r from-transparent via-cyan-500/10 to-transparent blur-3xl transform -rotate-6"></div>
             </div>
-            <h1 class="text-4xl font-medium mb-12 z-10 tracking-widest">{{ floorLabel }} {{ genderLabel }}</h1>
+            <h1 class="text-4xl font-medium mb-12 z-10 tracking-widest">{{ title }}</h1>
 
             <!-- 厕位状态：6 个以内一行，超过分两行且列对齐 -->
             <div class="w-full max-w-4xl px-8 z-10 flex flex-col gap-12">
