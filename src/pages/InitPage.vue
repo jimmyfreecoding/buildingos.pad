@@ -210,6 +210,7 @@ const handleSubmit = () => {
   }
 
   localStorage.setItem('initData', JSON.stringify(config))
+  console.log('[InitPage] saved initData:', config)
   step.value = 'template'
 }
 
