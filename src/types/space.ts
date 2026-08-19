@@ -10,7 +10,10 @@ export interface Room {
 
 export type MeetingRoom = Room
 export type Area = Room
-export type Toilet = Room
+export interface Toilet extends Room {
+  /** 卫生间性别类型：man | woman（来自 /iot/setting/get/structure） */
+  type?: string
+}
 
 export interface Floor {
   id: string | number

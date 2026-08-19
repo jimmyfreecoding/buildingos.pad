@@ -8,7 +8,7 @@ import QualityCard from '@/components/QualityCard.vue'
 import { useToliteData } from './useToliteData'
 
 const router = useRouter()
-const { floorName, roomName, activeRoom, stallRows, nearbyList, airDisplay, cleaningDisplay, bgVideo } = useToliteData()
+const { floorName, roomName, genderLabel, stallRows, nearbyList, airDisplay, cleaningDisplay, bgVideo } = useToliteData()
 
 const logoUrl = new URL('./assets/images/geely.png', import.meta.url).href
 
@@ -31,12 +31,6 @@ const onLogoClick = () => {
   logoTapTimer = setTimeout(() => { logoTapCount.value = 0 }, 800)
 }
 onUnmounted(() => { if (logoTapTimer) clearTimeout(logoTapTimer) })
-
-const genderLabel = computed(() => {
-  const r = activeRoom.value
-  if (/^T(MAN|WOMAN)\d*$/i.test(r)) return r.startsWith('TWOMAN') ? '女卫生间' : '男卫生间'
-  return roomName.value.includes('女') ? '女卫生间' : '男卫生间'
-})
 
 // 标题直接显示绑定卫生间的名称（如 "2F北女卫"）
 const title = computed(() => roomName.value || `${floorLabel.value} ${genderLabel.value}`)

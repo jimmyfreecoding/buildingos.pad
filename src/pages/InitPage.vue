@@ -108,7 +108,12 @@ const form = reactive({
   companyName: '',
 })
 
-const canSave = computed(() => form.spaceIndex !== null)
+// tolitePad 必须选到具体卫生间，否则保存后 initData 无 roomCode，订阅退化为 TMAN/TWOMAN
+const canSave = computed(() => {
+  if (form.spaceIndex === null) return false
+  if (form.type === 'tolite' && form.toiletIndex === null) return false
+  return true
+})
 
 const currentSpace = computed(() => {
   if (form.spaceIndex === null) return null
@@ -353,10 +358,11 @@ const handleConfirmTemplate = () => {
         </el-form-item>
 
         <!-- Toilet -->
-        <el-form-item label="绑定卫生间" v-if="currentFloor && form.type === 'tolite' && currentFloor.toilet?.length">
-          <el-select v-model="form.toiletIndex" placeholder="选择卫生间" class="w-full">
+        <el-form-item label="绑定卫生间" v-if="currentFloor && form.type === 'tolite'">
+          <el-select v-if="currentFloor.toilet?.length" v-model="form.toiletIndex" placeholder="选择卫生间" class="w-full">
             <el-option :label="t.name" :value="i" v-for="(t, i) in currentFloor.toilet" :key="i" />
           </el-select>
+          <p v-else class="text-red-400 text-sm">该楼层结构数据没有卫生间（toilet 列表为空），无法绑定，请检查空间数据</p>
         </el-form-item>
 
         <!-- Pubarea -->
