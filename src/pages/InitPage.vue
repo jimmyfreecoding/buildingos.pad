@@ -108,10 +108,12 @@ const form = reactive({
   companyName: '',
 })
 
-// tolitePad 必须选到具体卫生间，否则保存后 initData 无 roomCode，订阅退化为 TMAN/TWOMAN
+// tolitePad 必须选完「绑定类型=卫生间」与具体卫生间，否则保存后 initData 无 roomCode，订阅退化为 TMAN/TWOMAN
 const canSave = computed(() => {
   if (form.spaceIndex === null) return false
-  if (form.type === 'tolite' && form.toiletIndex === null) return false
+  if (padType.value === 'tolitePad') {
+    return form.type === 'tolite' && form.toiletIndex !== null
+  }
   return true
 })
 
@@ -179,7 +181,10 @@ const handleSubmit = () => {
         config.floorCode = floor.code
         config.type = form.type
 
-        const roomKey = form.type === 'meetingRoom' ? 'mettingRoom' : form.type
+        // 结构数据字段：meetingRoom 在结构里拼作 mettingRoom；tolite 绑定的是 floor.toilet
+        const roomKey = form.type === 'meetingRoom' ? 'mettingRoom'
+          : form.type === 'tolite' ? 'toilet'
+          : form.type
         const roomIndex = form.type === 'meetingRoom' ? form.meetingRoomIndex
           : form.type === 'room' ? form.roomIndex
           : form.type === 'area' ? form.areaIndex
@@ -193,6 +198,8 @@ const handleSubmit = () => {
           config.roomId = room.id
           config.roomName = room.name
           config.roomCode = room.code
+          // 卫生间性别类型 man/woman（结构数据），tolitePad 按它找附近同性卫生间
+          if (room.type) config.roomType = room.type
         }
 
         if (form.type === 'room' && form.companyName) {

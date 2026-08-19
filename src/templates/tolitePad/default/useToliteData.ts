@@ -46,6 +46,8 @@ export function useToliteData() {
   const floorName = String(init.floorName || init.floor || '')
   const initRoomName = String(init.roomName || init.name || '')
   const roomCode = String(init.roomCode || init.roomId || '')
+  // 卫生间性别 type：man/woman（InitPage 保存绑定卫生间时写入）
+  const initRoomType = String(init.roomType || '')
 
   // 结构数据中绑定的卫生间（/iot/setting/get/structure 同源）：名称与性别 type 的唯一权威来源
   const structureToilet = computed(() => {
@@ -67,28 +69,22 @@ export function useToliteData() {
   const structureName = computed(() => structureToilet.value?.name ?? '')
   const roomName = computed(() => initRoomName || structureName.value || configName.value)
 
-  // 性别：结构数据 toilet.type（man/woman）为准，结构缺失时退回名字判断
+  // 性别：结构数据 toilet.type → initData.roomType → 名字，逐级兜底
   const isWomen = computed(() => {
     const t = structureToilet.value
     if (t?.type) return String(t.type) === 'woman'
+    if (initRoomType) return initRoomType === 'woman'
     return roomName.value.includes('女')
   })
 
-  // TMAN/TWOMAN 惯例建筑直接用 code；其他建筑（如 SMART 楼 code 为真实结构编码）用绑定 code，
-  // 不再强制替换成 TMAN/TWOMAN，否则订阅和请求的主题都不对
-  const isTConvention = /^T(MAN|WOMAN)\d*$/i.test(roomCode)
-  const boundRoom = roomCode || (isWomen.value ? 'TWOMAN' : 'TMAN')
-  const fallbackRoom = isWomen.value ? 'TWOMAN' : 'TMAN'
-  // 参与订阅/请求的房间：非 T 惯例建筑只针对绑定卫生间
-  const rooms = isTConvention || !roomCode
-    ? Array.from(new Set([boundRoom, 'TMAN', 'TWOMAN']))
-    : [boundRoom]
+  // 一律以绑定卫生间的结构 code 为准（结构数据必然正确，不做 TMAN/TWOMAN 退化）
+  const boundRoom = roomCode
+  const rooms = boundRoom ? [boundRoom] : []
 
-  console.log('[tolitePad] binding:', { floorName, roomName: roomName.value, roomCode, boundRoom, rooms })
-  if (!roomCode) {
+  console.log('[tolitePad] binding:', { floorName, roomName: roomName.value, roomCode, roomType: initRoomType, rooms })
+  if (!boundRoom) {
     console.warn(
-      '[tolitePad] ⚠ initData 未绑定具体卫生间（roomCode/roomId 为空），' +
-      '订阅/请求退化为 TMAN/TWOMAN 且默认按男卫处理 —— ' +
+      '[tolitePad] ⚠ initData 未绑定具体卫生间（无结构 code），页面将无数据 —— ' +
       '请重新进入 /init（logo 三击）选择「绑定类型=卫生间」并选择具体卫生间',
     )
   }
@@ -543,21 +539,8 @@ export function useToliteData() {
     neighborUnsubs.length = 0
   })
 
-  // --- 当前展示房间（优先绑定房间，其次按男女，最后谁有数据用谁） ---
-  const activeRoom = computed(() => {
-    // 非 T 惯例建筑固定显示绑定卫生间
-    if (!isTConvention && roomCode) return boundRoom
-    const hasData = (r: string) =>
-      Object.keys(stallMap.value[r] ?? {}).length > 0 ||
-      (totalMap.value[r] ?? 0) > 0 ||
-      airMap.value[r] !== undefined ||
-      cleaningMap.value[r] !== undefined
-    if (hasData(boundRoom)) return boundRoom
-    if (hasData(fallbackRoom)) return fallbackRoom
-    const other = fallbackRoom === 'TMAN' ? 'TWOMAN' : 'TMAN'
-    if (hasData(other)) return other
-    return fallbackRoom
-  })
+  // --- 当前展示房间：固定为绑定卫生间 ---
+  const activeRoom = computed(() => boundRoom)
 
   // --- 厕位（数量由 total 决定、缺失时按已收到最大编号推断；状态未到显示未知 null，vip 最后） ---
   const stalls = computed<(number | null)[]>(() => {
@@ -650,12 +633,8 @@ export function useToliteData() {
     return { date, time, empName: c.empName }
   })
 
-  // 标题性别标签：T 惯例建筑按房间号，其余按结构类型（man/woman）
-  const genderLabel = computed(() => {
-    const r = activeRoom.value
-    if (/^T(MAN|WOMAN)\d*$/i.test(r)) return r.startsWith('TWOMAN') ? '女卫生间' : '男卫生间'
-    return isWomen.value ? '女卫生间' : '男卫生间'
-  })
+  // 标题性别标签：按结构类型（man/woman）
+  const genderLabel = computed(() => (isWomen.value ? '女卫生间' : '男卫生间'))
 
   return {
     floorName,
