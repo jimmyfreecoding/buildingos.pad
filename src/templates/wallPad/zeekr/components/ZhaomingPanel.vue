@@ -166,7 +166,7 @@ const switchAcMode = (mode: string) => {
 }
 
 const phoneMap: Record<string, string> = {
-  A3: '18667083301', A4: '18667083298', A5: '18667083299',
+  A3: '', A4: '', A5: '',
 }
 
 // Asset images
@@ -334,7 +334,7 @@ const chuanglian3 = new URL('../assets/images/chuanglian3.png', import.meta.url)
   <el-dialog v-model="dialogFankui" append-to-body width="560" top="30vh" :show-close="true">
     <template #header><div>有问题直接找楼长</div></template>
     <div class="fankui-txt">请使用企业微信扫描二维码添加</div>
-    <div class="fankui-txt">TEL：{{ ['53F','52F','54F'].includes(obj.floor) ? '13777586082' : (phoneMap[obj.floorarea] || '18667083298') }}</div>
+    <div class="fankui-txt">TEL：{{ ['53F','52F','54F'].includes(obj.floor) ? '' : (phoneMap[obj.floorarea] || '') }}</div>
   </el-dialog>
 </template>
 
