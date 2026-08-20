@@ -362,7 +362,7 @@ const floorImg = new URL('./assets/images/floor.jpg', import.meta.url).href
         <!-- 告警 -->
         <div v-if="sosAnimate" class="sos-jinling flex-col justify-center">
           <div class="txt1">紧急呼叫中！安保人员正在前往此楼层</div>
-          <div class="txt2">安保处联络方式：（0571）28098488</div>
+          <div class="txt2">安保处联络方式：</div>
         </div>
 
         <!-- Drawer -->

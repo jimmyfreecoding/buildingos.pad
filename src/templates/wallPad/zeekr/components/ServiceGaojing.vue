@@ -10,7 +10,7 @@ const sosImg = new URL('../assets/images/bgIconsos.png', import.meta.url).href
       <img :src="sosImg" style="width:120px;margin-bottom:32px;" />
       <div style="font-size:32px;color:#FF5544;margin-bottom:16px;">紧急呼叫中！</div>
       <div style="font-size:24px;opacity:0.7;">安保人员正在前往此楼层</div>
-      <div style="font-size:20px;opacity:0.5;margin-top:12px;">安保处联络方式：（0571）28098488</div>
+      <div style="font-size:20px;opacity:0.5;margin-top:12px;">安保处联络方式：</div>
     </div>
   </div>
 </template>

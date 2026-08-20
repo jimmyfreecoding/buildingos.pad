@@ -104,7 +104,7 @@ const erweima = new URL('../assets/images/erweima.png', import.meta.url).href
   >
     <div>确认呼救？</div>
     <div class="huliu-txt">确认呼救后，安保人员会前往您所在楼层进行救援，请谨慎操作此功能</div>
-    <div class="huliu-txt">安保处联络方式：（0571）28098488</div>
+    <div class="huliu-txt">安保处联络方式：</div>
     <template #footer>
       <div class="dialog-footer flex-row justify-around">
         <el-button type="default" @click="dialogSos = false">取消</el-button>
