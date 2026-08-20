@@ -36,7 +36,6 @@ import ZhaomingPanel from './components/ZhaomingPanel.vue'
 import RoomUsePanel from './components/RoomUsePanel.vue'
 import BgVideo from './components/BgVideo.vue'
 import IntelligentPanel from './components/IntelligentPanel.vue'
-import FloorMap from './components/FloorMap.vue'
 
 // ====== Screen state ======
 const drawer = ref(false)
@@ -176,7 +175,6 @@ const syncAcTemp = (val: number) => { console.log('[index] syncAcTemp:', val); a
 const syncAcSpeed = (speed: string) => { console.log('[index] syncAcSpeed:', speed); acSetSpeedStr(speed) }
 const syncAcMode = (mode: string) => { console.log('[index] syncAcMode:', mode); acSetMode(mode) }
 const syncBlind = (dir: string) => { blindMove(dir as 'up' | 'down' | 'pause') }
-const clickEven = () => {}
 
 // ====== 右上角时间三连击刷新页面 ======
 let timeClickCount = 0
@@ -386,7 +384,7 @@ const floorImg = new URL('./assets/images/floor.jpg', import.meta.url).href
               @clickChild="navFun"
             ></LeftNav>
 
-            <div style="height:100%;background:#090909;z-index:3;position:relative;left:-1px;">
+            <div style="flex:1;height:100%;background:#090909;z-index:3;position:relative;left:-1px;">
               <ServicePanel v-if="tabIndex === 0 && !sosAnimateDia" :disabledSos="disabledSos" @childFun="openSos"></ServicePanel>
               <ServiceGaojing v-if="tabIndex === 0 && sosAnimateDia"></ServiceGaojing>
               <HuanjingPanel v-if="tabIndex === 1" :inside="inside" :outside="outside" :obj="obj"></HuanjingPanel>
@@ -401,10 +399,6 @@ const floorImg = new URL('./assets/images/floor.jpg', import.meta.url).href
               <IntelligentPanel v-if="obj.floor === '54F' ? tabIndex === 3 : tabIndex === 4" :space-name="obj.spaceName"></IntelligentPanel>
             </div>
 
-            <!-- 地图区 -->
-            <div v-if="![1,2,3].includes(tabIndex)" style="flex:1;background:#161616;z-index:2;position:relative;left:-2px;">
-              <FloorMap :tabIndex="tabIndex" :lights="lights" :currentLight="currentLight" :currentLightStatus="currentLightStatus" @clickChild="clickEven" />
-            </div>
             <div v-if="[1,2,3].includes(tabIndex)" style="width:800px;height:100%;background:#161616;z-index:2;flex:none;position:relative;left:-2px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
               <img :src="floorImg" style="max-width:100%;max-height:100%;object-fit:contain;display:block;" />
             </div>
