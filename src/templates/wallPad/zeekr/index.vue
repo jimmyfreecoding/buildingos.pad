@@ -117,7 +117,12 @@ const getHuanjingText = (type: string, val: number) => {
 
 // ====== Actions ======
 const showIndex = (idx: number) => { tabIndex.value = idx; drawer.value = true }
-const openSos = () => { sosAnimate.value = true; sosAnimateDia.value = true; drawer.value = true; tabIndex.value = 0 }
+// ====== SOS 临时屏蔽：呼叫页需服务端响应才会消失，后端未就绪期间屏蔽点击；后端就绪后改回 true ======
+const SOS_ENABLED = false
+const openSos = () => {
+  if (!SOS_ENABLED) return
+  sosAnimate.value = true; sosAnimateDia.value = true; drawer.value = true; tabIndex.value = 0
+}
 const sosConfirm = () => { sosAnimate.value = false; sosAnimateDia.value = false; drawer.value = false; disabledSos.value = true; setTimeout(() => { disabledSos.value = false }, 3000) }
 const toMainBox = () => { isWuxiui.value = false }
 const handleCleanRecord = () => { loading.value = true; setTimeout(() => { loading.value = false; isOk.value = true }, 1500) }
@@ -173,6 +178,21 @@ const syncAcMode = (mode: string) => { console.log('[index] syncAcMode:', mode);
 const syncBlind = (dir: string) => { blindMove(dir as 'up' | 'down' | 'pause') }
 const clickEven = () => {}
 
+// ====== 右上角时间三连击刷新页面 ======
+let timeClickCount = 0
+let timeClickTimer: ReturnType<typeof setTimeout> | null = null
+const onTimeClick = () => {
+  timeClickCount++
+  if (timeClickTimer) clearTimeout(timeClickTimer)
+  if (timeClickCount >= 3) {
+    timeClickCount = 0
+    timeClickTimer = null
+    location.href = location.href
+    return
+  }
+  timeClickTimer = setTimeout(() => { timeClickCount = 0; timeClickTimer = null }, 1500)
+}
+
 // Asset URLs
 const iconWen = new URL('./assets/images/wen.png', import.meta.url).href
 const iconTem = new URL('./assets/images/tem.png', import.meta.url).href
@@ -212,7 +232,7 @@ const floorImg = new URL('./assets/images/floor.jpg', import.meta.url).href
         <!-- 顶部栏 -->
         <div style="position:absolute;top:0;width:100%;padding:80px 100px;z-index:1;" class="flex-row justify-between">
           <div style="width:15%;"><img :src="logoUrl" style="width:100%;height:auto;cursor:pointer;" @click="onLogoClick" /></div>
-          <div class="flex-col align-center">
+          <div class="flex-col align-center" style="cursor:pointer;" @click="onTimeClick">
             <div style="font-size:40px;line-height:10px;">{{ timeStr }}</div>
             <div style="margin-top:24px;font-size:16px;opacity:0.8;" class="flex-row align-center">
               <div>{{ dateStr }}</div>
