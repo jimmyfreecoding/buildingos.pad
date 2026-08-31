@@ -3,6 +3,8 @@ import { useDeviceStore } from '@/stores/device'
 import { useSpaceStore } from '@/stores/space'
 import { useMqtt } from '@/utils/useMqtt'
 import { topics } from '@/utils/mqtt'
+import { isCompleteSpaceContext } from '@/utils/mqttTopics'
+import { logClk } from '@/utils/logClk'
 import type { LightDevice } from '@/types/device'
 
 function parseDeviceStatus(raw: any): Record<string, any> {
@@ -133,6 +135,19 @@ export function useLightMqtt() {
     const topic = topics.lightAction(ctx.value) + '/' + device.name
     console.log('[LightMqtt] toggleLight:', device.name, '->', action, 'topic:', topic)
     mqtt.publish(topic, { action })
+    if (isCompleteSpaceContext(ctx.value)) {
+      const c = ctx.value!
+      logClk({
+        sourceName: '/运营/楼宇智控/照明/单控',
+        deviceType: 'light',
+        actionTopic: topic,
+        actionData: JSON.stringify({ action }),
+        spaceCode: c.spaceCode,
+        floorCode: c.floorCode,
+        floorAreaCode: c.floorAreaCode,
+        areaCode: c.deviceCode,
+      })
+    }
     setTimeout(() => {
       if (ctx.value) mqtt.publish(topics.lightAction(ctx.value) + '/' + device.name, { action: 'status' })
     }, 500)
@@ -142,9 +157,27 @@ export function useLightMqtt() {
     if (!ctx.value) { console.warn('[LightMqtt] setAll: no ctx'); return }
     const action = on ? 'on' : 'off'
     const names = lights.value.devices.map((d) => d.name).join(',')
+    // 设备列表为空时不发整组指令，防止空 deviceName 段被平台按整楼/整区匹配
+    if (!names) { console.warn('[LightMqtt] setAll: no devices — skip publish'); return }
     const topic = topics.lightAction(ctx.value) + '/' + names
     console.log('[LightMqtt] setAll:', action, 'topic:', topic)
     mqtt.publish(topic, { action })
+    // 群控：按设备数记录多条单控日志，actionTopic/sourceName 均为实际群控主题与群控来源
+    if (isCompleteSpaceContext(ctx.value)) {
+      const c = ctx.value!
+      lights.value.devices.forEach(() => {
+        logClk({
+          sourceName: '/运营/楼宇智控/照明/群控',
+          deviceType: 'light',
+          actionTopic: topic,
+          actionData: JSON.stringify({ action }),
+          spaceCode: c.spaceCode,
+          floorCode: c.floorCode,
+          floorAreaCode: c.floorAreaCode,
+          areaCode: c.deviceCode,
+        })
+      })
+    }
     setTimeout(() => {
       if (ctx.value) mqtt.publish(topics.lightAction(ctx.value), { action: 'status' })
     }, 4000)

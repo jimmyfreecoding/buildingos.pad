@@ -5,6 +5,12 @@ export interface SpaceContext {
   deviceCode: string
 }
 
+// 四段缺一即为绑定不完整，此时指令主题会退化为 /iot/action/{domain}/SMART///，
+// 平台按整楼匹配会造成跨区域控制（如全楼关灯），必须拦下
+export function isCompleteSpaceContext(c: SpaceContext | null | undefined): boolean {
+  return !!(c && c.spaceCode && c.floorAreaCode && c.floorCode && c.deviceCode)
+}
+
 const IOT_STATUS = '/iot/status'
 const IOT_ACTION = '/iot/action'
 
@@ -108,6 +114,18 @@ export const topics = {
   // --- Pad (device discovery / management) ---
   padAction: (c: SpaceContext) =>
     `${IOT_ACTION}/pad/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${c.deviceCode}`,
+
+  // --- Pad heartbeat (pad 自报在线状态，见 devDocs/pad心跳-调研文档.md) ---
+  padHeartbeat: (c: SpaceContext, padName: string) =>
+    `${IOT_STATUS}/pad/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${c.deviceCode}/${padName}`,
+
+  // --- Meeting room booking list (后端推送，原项目 /iot/meeting/mroom/...) ---
+  meetingMroom: (c: SpaceContext) =>
+    `/iot/meeting/mroom/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${c.deviceCode}`,
+
+  // --- Human presence sensor per room (会议室房间级) ---
+  humanSensorRoom: (c: SpaceContext) =>
+    `${IOT_STATUS}/humensensor/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${c.deviceCode}/#`,
 
   // --- Device config (original protocol) ---
   deviceConfigGet: () => '/iot/setting/get/device',

@@ -3,6 +3,8 @@ import { useDeviceStore } from '@/stores/device'
 import { useSpaceStore } from '@/stores/space'
 import { useMqtt } from '@/utils/useMqtt'
 import { topics } from '@/utils/mqtt'
+import { isCompleteSpaceContext } from '@/utils/mqttTopics'
+import { logClk } from '@/utils/logClk'
 import type { FreshAirState, FreshAirMode } from '@/types/device'
 
 export function useFreshAirMqtt() {
@@ -44,14 +46,35 @@ export function useFreshAirMqtt() {
     if (key.value) deviceStore.release(key.value)
   })
 
+  const logFreshAir = (topic: string, payload: Record<string, unknown>) => {
+    if (!ctx.value || !isCompleteSpaceContext(ctx.value)) return
+    const c = ctx.value
+    logClk({
+      sourceName: '/运营/楼宇智控/新风/单控',
+      deviceType: 'freshair',
+      actionTopic: topic,
+      actionData: JSON.stringify(payload),
+      spaceCode: c.spaceCode,
+      floorCode: c.floorCode,
+      floorAreaCode: c.floorAreaCode,
+      areaCode: c.deviceCode,
+    })
+  }
+
   const togglePower = () => {
     if (!ctx.value) return
-    mqtt.publish(topics.freshAirAction(ctx.value), { action: 'power', value: !freshAir.value.power })
+    const topic = topics.freshAirAction(ctx.value)
+    const payload = { action: 'power', value: !freshAir.value.power }
+    mqtt.publish(topic, payload)
+    logFreshAir(topic, payload)
   }
 
   const setMode = (mode: FreshAirMode) => {
     if (!ctx.value) return
-    mqtt.publish(topics.freshAirAction(ctx.value), { action: 'setMode', value: mode })
+    const topic = topics.freshAirAction(ctx.value)
+    const payload = { action: 'setMode', value: mode }
+    mqtt.publish(topic, payload)
+    logFreshAir(topic, payload)
   }
 
   return { freshAir, ctx, togglePower, setMode }

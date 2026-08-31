@@ -3,6 +3,8 @@ import { useDeviceStore } from '@/stores/device'
 import { useSpaceStore } from '@/stores/space'
 import { useMqtt } from '@/utils/useMqtt'
 import { topics } from '@/utils/mqtt'
+import { isCompleteSpaceContext } from '@/utils/mqttTopics'
+import { logClk } from '@/utils/logClk'
 import type { SocketState } from '@/types/device'
 
 export function useSocketMqtt() {
@@ -50,7 +52,22 @@ export function useSocketMqtt() {
     if (!ctx.value) return
     const socket = sockets.value.find((s) => s.id === id)
     if (socket) {
-      mqtt.publish(topics.socketAction(ctx.value), { action: socket.active ? 'off' : 'on', id })
+      const topic = topics.socketAction(ctx.value)
+      const payload = { action: socket.active ? 'off' : 'on', id }
+      mqtt.publish(topic, payload)
+      if (isCompleteSpaceContext(ctx.value)) {
+        const c = ctx.value!
+        logClk({
+          sourceName: '/运营/楼宇智控/插座/单控',
+          deviceType: 'socket',
+          actionTopic: topic,
+          actionData: JSON.stringify(payload),
+          spaceCode: c.spaceCode,
+          floorCode: c.floorCode,
+          floorAreaCode: c.floorAreaCode,
+          areaCode: c.deviceCode,
+        })
+      }
     }
   }
 

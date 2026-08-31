@@ -1,19 +1,23 @@
 import request from '@/utils/request'
 
+// 与老项目 logClk（doAddDeviceControlLog）对齐的字段结构
 export interface DeviceControlLog {
-  spaceId?: string | number
-  floorAreaId?: string | number
-  floorId?: string | number
-  deviceId?: string | number
+  spaceCode?: string | number
+  sourceType?: string
+  sourceName?: string
+  floorCode?: string
+  floorAreaCode?: string
+  areaCode?: string
   deviceType?: string
-  action?: string
-  value?: unknown
+  actionTopic?: string
+  actionData?: string
 }
 
 export function addDeviceControlLog(params: DeviceControlLog): Promise<void> {
   return request({
     url: '/api/device/doAddDeviceControlLog',
-    method: 'post',
-    data: params,
+    method: 'get',
+    params,
+    skipErrorMessage: true,
   })
 }

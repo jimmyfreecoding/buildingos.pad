@@ -3,6 +3,8 @@ import { useDeviceStore } from '@/stores/device'
 import { useSpaceStore } from '@/stores/space'
 import { useMqtt } from '@/utils/useMqtt'
 import { topics } from '@/utils/mqtt'
+import { isCompleteSpaceContext } from '@/utils/mqttTopics'
+import { logClk } from '@/utils/logClk'
 import type { BlindDevice, BlindState } from '@/types/device'
 
 function parseDeviceStatus(raw: any): Record<string, any> {
@@ -121,6 +123,19 @@ export function useBlindMqtt() {
     const topic = topics.blindAction(ctx.value)
     console.log('[BlindMqtt] move:', direction, 'topic:', topic)
     mqtt.publish(topic, { action: direction })
+    if (isCompleteSpaceContext(ctx.value)) {
+      const c = ctx.value!
+      logClk({
+        sourceName: '/运营/楼宇智控/窗帘/单控',
+        deviceType: 'blind',
+        actionTopic: topic,
+        actionData: JSON.stringify({ action: direction }),
+        spaceCode: c.spaceCode,
+        floorCode: c.floorCode,
+        floorAreaCode: c.floorAreaCode,
+        areaCode: c.deviceCode,
+      })
+    }
   }
 
   return { blind, ctx, move }

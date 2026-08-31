@@ -108,13 +108,25 @@ const form = reactive({
   companyName: '',
 })
 
-// tolitePad 必须选完「绑定类型=卫生间」与具体卫生间，否则保存后 initData 无 roomCode，订阅退化为 TMAN/TWOMAN
+// 绑定必须完整到具体房间/区域：否则 initData 缺 floorAreaCode/floorCode/roomCode，
+// MQTT 主题退化为 /iot/action/{domain}/SMART///，平台收不到有效指令
 const canSave = computed(() => {
   if (form.spaceIndex === null) return false
-  if (padType.value === 'tolitePad') {
-    return form.type === 'tolite' && form.toiletIndex !== null
-  }
-  return true
+  if (form.floorareaIndex === null) return false
+  if (form.floorIndex === null) return false
+  if (!form.type) return false
+  const floor = currentFloor.value
+  if (!floor) return false
+  const listKey = form.type === 'meetingRoom' ? 'mettingRoom' : form.type
+  const list = (floor as any)[listKey]
+  if (!Array.isArray(list) || list.length === 0) return false
+  const idx = form.type === 'meetingRoom' ? form.meetingRoomIndex
+    : form.type === 'room' ? form.roomIndex
+    : form.type === 'area' ? form.areaIndex
+    : form.type === 'tolite' ? form.toiletIndex
+    : form.type === 'pubarea' ? form.pubareaIndex
+    : null
+  return idx !== null
 })
 
 const currentSpace = computed(() => {
@@ -225,7 +237,9 @@ const handleConfirmTemplate = () => {
     data.template = selectedTemplate.value
     localStorage.setItem('initData', JSON.stringify(data))
   } catch { /* ignore */ }
-  router.push('/' + padType.value)
+  // 空间绑定影响 spaceContext/MQTT 主题与订阅（spaceStore 的 computed 会缓存旧 initData，
+  // MQTT clientId 也来自 initData），SPA 内跳转不会重建，必须整页重载
+  window.location.href = router.resolve({ path: '/' + padType.value }).href
 }
 </script>
 

@@ -3,6 +3,8 @@ import { useDeviceStore } from '@/stores/device'
 import { useSpaceStore } from '@/stores/space'
 import { useMqtt } from '@/utils/useMqtt'
 import { topics } from '@/utils/mqtt'
+import { isCompleteSpaceContext } from '@/utils/mqttTopics'
+import { logClk } from '@/utils/logClk'
 import type { DoorState } from '@/types/device'
 
 export function useDoorMqtt() {
@@ -48,7 +50,22 @@ export function useDoorMqtt() {
 
   const unlock = (id: string) => {
     if (!ctx.value) return
-    mqtt.publish(topics.doorAction(ctx.value), { action: 'unlock', id })
+    const topic = topics.doorAction(ctx.value)
+    const payload = { action: 'unlock', id }
+    mqtt.publish(topic, payload)
+    if (isCompleteSpaceContext(ctx.value)) {
+      const c = ctx.value!
+      logClk({
+        sourceName: '/运营/楼宇智控/门禁/单控',
+        deviceType: 'door',
+        actionTopic: topic,
+        actionData: JSON.stringify(payload),
+        spaceCode: c.spaceCode,
+        floorCode: c.floorCode,
+        floorAreaCode: c.floorAreaCode,
+        areaCode: c.deviceCode,
+      })
+    }
   }
 
   return { doors, ctx, unlock }

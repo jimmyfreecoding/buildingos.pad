@@ -13,6 +13,12 @@ const disconnectListeners: Array<() => void> = []
 
 export const isConnected: Ref<boolean> = ref(false)
 
+// 主题存在空路径段（如 /iot/action/light/SMART/// 或末尾空段 .../3F/），
+// 平台会按更宽范围匹配指令，必须拦截
+function hasEmptyTopicSegment(topic: string): boolean {
+  return topic.split('/').slice(1).some((seg) => seg === '')
+}
+
 function resolveClientId(): string | undefined {
   try {
     const raw = localStorage.getItem('initData')
@@ -113,6 +119,9 @@ export function disconnectMqtt(): void {
 }
 
 export function subscribe(topic: string): void {
+  if (hasEmptyTopicSegment(topic)) {
+    console.warn('[MQTT] subscribe topic has empty path segments — space binding incomplete:', topic)
+  }
   if (isMockMode()) {
     console.log('[MQTT] subscribe skipped (mock mode):', topic)
     return
@@ -150,6 +159,13 @@ export function unsubscribe(topic: string): void {
 }
 
 export function publish(topic: string, message: string | object): void {
+  // 控制指令标准格式：/iot/action/{domain}/{space}/{area}/{floor}/{deviceCode}[/{deviceName}]
+  // 缺任一段即拦截——空段会被平台按更宽范围匹配，一条 off 指令即可造成整楼/整层关灯。
+  // 该规则仅针对控制（action）主题，其他发布类型按各自协议另行处理。
+  if (topic.startsWith('/iot/action') && hasEmptyTopicSegment(topic)) {
+    console.warn('[MQTT] BLOCKED publish — action topic missing path segment(s):', topic, message)
+    return
+  }
   if (isMockMode() || !client) {
     console.log('[MQTT Mock] publish:', topic, message)
     return

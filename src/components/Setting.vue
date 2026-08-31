@@ -103,8 +103,25 @@ const bindingInfo = computed(() => {
 })
 
 const canSave = computed(() => {
-  // Simple validation logic, can be enhanced
-  return form.spaceIndex !== null
+  // 绑定必须完整到具体房间/区域，否则 initData 缺 floorAreaCode/floorCode/roomCode，
+  // MQTT 指令主题退化为 /iot/action/{domain}/{spaceCode}///，平台收不到有效指令
+  if (form.spaceIndex === null) return false
+  if (form.floorareaIndex === null) return false
+  if (form.floorIndex === null) return false
+  if (!form.type) return false
+  const space = spaceObj.value[form.spaceIndex]
+  const floor = space?.floorArea?.[form.floorareaIndex]?.floor?.[form.floorIndex]
+  if (!floor) return false
+  const listKey = form.type === 'meetingRoom' ? 'mettingRoom' : form.type
+  const list = floor[listKey]
+  if (!Array.isArray(list) || list.length === 0) return false
+  const idx = form.type === 'meetingRoom' ? form.mettingRoomIndex
+    : form.type === 'room' ? form.roomIndex
+    : form.type === 'area' ? form.areaIndex
+    : form.type === 'tolite' ? form.toiletIndex
+    : form.type === 'pubarea' ? form.pubareaIndex
+    : null
+  return idx !== null
 })
 
 const getSpaceList = async () => {
@@ -166,10 +183,12 @@ const saveData = () => {
            const mr = floor.mettingRoom[form.mettingRoomIndex]
            config.roomId = mr.id
            config.roomName = mr.name
+           config.roomCode = mr.code
         } else if (form.type === 'room' && form.roomIndex !== null) {
            const room = floor.room[form.roomIndex]
            config.roomId = room.id
            config.roomName = room.name
+           config.roomCode = room.code
            
            if (form.companyName) {
              config.companyName = form.companyName
@@ -205,7 +224,8 @@ const saveData = () => {
   ElMessage.success('配置已保存')
   showSpaceDialog.value = false
   console.log("config",localStorage.getItem('initData'))
-  //window.location.reload()
+  // 空间绑定影响 spaceContext/MQTT 主题与订阅，必须整页重载生效
+  window.location.reload()
 }
 
 const handlePinSubmit = () => {

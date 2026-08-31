@@ -3,6 +3,13 @@ import { stringify } from 'qs'
 import { ElMessage } from 'element-plus'
 import { getServerConfig } from '@/config/servers'
 
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    /** 静默请求（如操作日志打点）：失败不弹全局错误提示 */
+    skipErrorMessage?: boolean
+  }
+}
+
 const contentType = 'application/json;charset=UTF-8'
 const timeout = 60000
 
@@ -56,25 +63,27 @@ instance.interceptors.response.use(
   (error) => {
     const { response } = error
     console.error('Request Error:', error)
+    const skip = !!error?.config?.skipErrorMessage
 
-    if (response && response.status) {
-      const errorText = CODE_MESSAGE[response.status] || response.statusText
-      const { status, url } = response
+    if (!skip) {
+      if (response && response.status) {
+        const { status, url } = response
 
-      ElMessage.error({
-        message: `请求错误 ${status}: ${url}`,
-        grouping: true,
-        duration: 5000
-      })
+        ElMessage.error({
+          message: `请求错误 ${status}: ${url}`,
+          grouping: true,
+          duration: 5000
+        })
 
-      if (CODE_MESSAGE[status]) {
-         ElMessage.error({
-             message: CODE_MESSAGE[status],
-             grouping: true
-         })
+        if (CODE_MESSAGE[status]) {
+           ElMessage.error({
+               message: CODE_MESSAGE[status],
+               grouping: true
+           })
+        }
+      } else if (!response) {
+        ElMessage.error('您的网络发生异常，无法连接服务器')
       }
-    } else if (!response) {
-      ElMessage.error('您的网络发生异常，无法连接服务器')
     }
 
     if (response === undefined) {

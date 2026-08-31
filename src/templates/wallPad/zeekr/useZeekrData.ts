@@ -6,6 +6,7 @@ import { useHumanSensorMqtt } from '@/composables/useHumanSensorMqtt'
 import { useBlindMqtt } from '@/composables/useBlindMqtt'
 import { useAcMqtt } from '@/composables/useAcMqtt'
 import { isConnected, subscribe, onMessage } from '@/utils/mqtt'
+import { isCompleteSpaceContext } from '@/utils/mqttTopics'
 import * as mock from './mockData'
 
 type WcStatusObj = Record<string, number> & { vip?: number }
@@ -28,7 +29,7 @@ export function useZeekrData() {
 
   // --- Domain composables ---
   const { airQuality } = useAirSensorMqtt()
-  const { lights: mqttLights, toggleLight: mqttToggleLight, setAll: mqttSetAll } = useLightMqtt()
+  const { lights: mqttLights, ctx: lightCtx, toggleLight: mqttToggleLight, setAll: mqttSetAll } = useLightMqtt()
   const { sensors: wcSensors } = useWcSensorMqtt()
   const { sensors: humanSensors } = useHumanSensorMqtt()
   const { blind: mqttBlind, move: mqttBlindMove } = useBlindMqtt()
@@ -176,16 +177,16 @@ export function useZeekrData() {
   const wcmanStatusLive = computed(() => wcObjFrom('TMAN'))
   const wcwomanStatusLive = computed(() => wcObjFrom('TWOMAN'))
 
-  // --- Light actions (MQTT when connected, local state toggle when not) ---
+  // --- Light actions (MQTT only when connected AND binding complete; otherwise local state) ---
   const toggleLight = (light: any) => {
-    if (isConnected.value) {
+    if (isConnected.value && isCompleteSpaceContext(lightCtx.value)) {
       const device = mqttLights.value?.devices?.find((d) => d.name === light.name)
       if (device) {
         mqttToggleLight(device.id)
         return
       }
     }
-    // Fallback: local toggle
+    // Fallback: local toggle（断连或绑定不完整时，绝不发 MQTT）
     const idx = mock.lights.value.findIndex((l: any) => l.name === light.name)
     if (idx !== -1) {
       mock.lights.value[idx].status = mock.lights.value[idx].status === 1 ? 0 : 1
@@ -193,10 +194,11 @@ export function useZeekrData() {
   }
 
   const setAllLights = (on: boolean) => {
-    if (isConnected.value) {
+    if (isConnected.value && isCompleteSpaceContext(lightCtx.value)) {
       mqttSetAll(on)
       return
     }
+    console.warn('[useZeekrData] setAllLights: binding incomplete or disconnected — local state only')
     mock.lights.value.forEach((l: any) => { l.status = on ? 1 : 0 })
   }
 

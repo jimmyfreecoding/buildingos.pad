@@ -38,6 +38,7 @@ export type DeviceDomain =
   | 'camera'
   | 'audio'
   | 'matrix'
+  | 'pad'
 
 function makeKey(ctx: { spaceCode: string; floorAreaCode: string; floorCode: string; deviceCode: string }, domain: DeviceDomain, sub?: string): string {
   const base = `${ctx.spaceCode}/${ctx.floorAreaCode}/${ctx.floorCode}/${ctx.deviceCode}/${domain}`
