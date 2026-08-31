@@ -1,23 +1,22 @@
-# doAddDeviceControlLog 端点开发指南（边缘侧 + 云端侧）
+# doAddDeviceControlLog 端点开发指南（边缘端侧）
 
-> 适用：buildingos.pad 操作日志链路。Pad 端已完成（`src/utils/logClk.ts` → `GET {apiBaseUrl}/api/device/doAddDeviceControlLog`），本文档供边缘侧、云端侧两个团队按契约各自实现端点。
+> 适用：buildingos.pad 操作日志链路。Pad 端已完成（`src/utils/logClk.ts` → `GET {VITE_EDGE_BASE_URL}/api/device/doAddDeviceControlLog`，未配置时回退 `{VITE_APP_BASE_URL}` 即边端 Node-RED）。**Pad 直连边缘端端点，边缘端经其自有云通道转发云端落库；云端不与 Pad 直接通信。**
 
 ## 1. 架构
 
 ```
 Pad (前端)
-  └─ GET /api/device/doAddDeviceControlLog?{query 参数}
+  └─ GET {VITE_EDGE_BASE_URL}/api/device/doAddDeviceControlLog?{query 参数}
         ↓
-边缘侧后端（Pad 的 apiBaseUrl 指向的服务，即 VITE_APP_BASE_URL）
-  └─ 收到后转发：GET {CLOUD_BASE_URL}/api/device/doAddDeviceControlLog（query 原样透传）
-        ↓
+边缘端端点（边缘端服务，非 Node-RED）
+        ↓（边缘端自有云通道，如 HTTP 转发 / SDK / 网关）
 云端后端（最终落库）
 ```
 
-- 两端实现**完全相同**的端点路径与入参，保证一体部署（云端=边缘同机，`CLOUD_BASE_URL` 指向本机）时行为一致。
-- 云端地址由边缘侧配置（环境变量/配置项，建议 `CLOUD_BASE_URL`）。
+- `VITE_EDGE_BASE_URL` 为空时回退到 `VITE_APP_BASE_URL`（边端 Node-RED），仅用于开发环境联调，生产必须配置为边缘端服务地址。
+- 获取空间接口 `/iot/setting/get/structure` 仍走 `VITE_APP_BASE_URL`（边端 Node-RED 提供），与日志端点互不影响。
 
-## 2. 接口契约（两端一致）
+## 2. 接口契约（Pad → 边缘端）
 
 | 项 | 值 |
 |---|---|
@@ -76,53 +75,22 @@ Pad (前端)
 - 后端按条入库即可，不需要聚合、不需要去重拆分。
 - 空调群控在设备列表未知时至少发送 1 条。
 
-## 5. Pad 端行为约定（后端实现需知）
+## 5. Pad 端行为约定（边缘端实现需知）
 
 - Pad 每条控制指令发出后**同步发一条日志请求**，失败静默、不弹窗、**不重试**。
-- 因此日志允许少量丢失（断网瞬间），但不允许影响控制指令本身。
-- 边缘侧如做重试，可能产生重复记录——日志场景可接受重复，建议不做去重（或仅按 `actionTopic + actionData + created_at` 窗口做可选去重）。
+- 因此日志允许少量丢失（断网瞬间、边缘端不可达），但不允许影响控制指令本身。
 
-## 6. 边缘侧实现要求
+## 6. 边缘端实现要求
 
-对外能力：
-
-1. 暴露 `GET /api/device/doAddDeviceControlLog`（与云端同路径）。
-2. 接收后**尽快返回 200**（Pad 不等待转发结果），转发异步进行。
-3. 转发目标：`{CLOUD_BASE_URL}/api/device/doAddDeviceControlLog`，query 参数**原样透传**（字段名与值不变，注意 URL 编解码）。
-4. 转发失败处理：重试 2 次（间隔 1s/5s 即可），仍失败则记录本地日志（文件/控制台）后丢弃。不要反压 Pad。
-5. `CLOUD_BASE_URL` 可配置；一体部署时指向本机自己。
-6. 鉴权：Pad ↔ 边缘端为内网，可不做；边缘 → 云端建议支持可选的 `Authorization` 头配置（云端无鉴权时留空）。
-
-### Node-RED 实现参考（若边缘端为 Node-RED，如现场 10.205.66.7:1880）
-
-```
-[HTTP In] GET /api/device/doAddDeviceControlLog
-   ├──(分支1，立即应答)
-   │    [Change] msg.statusCode=200; msg.payload={"code":0,"message":"ok"}
-   │    └─ [HTTP Response]
-   └──(分支2，异步转发云端)
-        [Function] 透传 query 并设置转发 URL
-        └─ [HTTP Request] GET {CLOUD_BASE_URL}/api/device/doAddDeviceControlLog（超时 5s）
-             ├─ 成功 → [Debug/忽略]
-             └─ [Catch] → 重试/本地日志（可再用 delay + link 回 HTTP Request 节点做 2 次重试）
-```
-
-Function 节点参考代码：
-
-```js
-// query 即 Pad 发来的 GET 参数（HTTP In 节点已解析为 msg.payload 对象）
-msg.url = env.get('CLOUD_BASE_URL') + '/api/device/doAddDeviceControlLog';
-msg.method = 'GET';
-// 保留 msg.payload 为 query 对象，HTTP Request 节点会自动拼成 URL 查询串
-// 可选：msg.headers.Authorization = 'Bearer ' + env.get('CLOUD_TOKEN');
-return msg;
-```
-
-## 7. 云端侧实现要求
-
-1. 实现相同端点 `GET /api/device/doAddDeviceControlLog`。
+1. 实现端点 `GET /api/device/doAddDeviceControlLog`。
 2. 必填校验（query 参数缺一返回 400）：`spaceCode`、`sourceName`、`deviceType`、`actionTopic`、`actionData`。
-3. 落库，建议表结构：
+3. **CORS**：Pad 页面 origin（现场部署地址，如 `http://10.80.142.27:1880`）与边缘端服务地址通常不同源，边缘端需配置跨域：
+   - GET 响应带 `Access-Control-Allow-Origin`（按现场 pad origin 精确配置，或 `*`）；
+   - Pad 的 axios 实例默认携带 `Content-Type: application/json;charset=UTF-8`（非简单头），浏览器会先发 **OPTIONS 预检**——边缘端对 OPTIONS 需返回 200/204 并带 `Access-Control-Allow-Methods: GET, OPTIONS`、`Access-Control-Allow-Headers: Content-Type`；
+   - Pad 请求当前不带 Authorization；如需鉴权请先另行约定（不推荐把凭据放进 pad 配置）。
+4. **转发云端**：边缘端收到后经**其自有云通道**转发云端落库（query 参数原样透传，勿解析、勿重组）。转发可异步、可重试，与 Pad 请求响应解耦。
+5. 返回 `{"code":0,"message":"ok"}`（先响应 Pad，再异步转发云端）。
+6. 云端侧实现同样的落库端点（服务端到服务端调用，无 CORS 问题），建议表结构：
 
 ```sql
 CREATE TABLE device_control_log (
@@ -140,8 +108,25 @@ CREATE TABLE device_control_log (
 );
 ```
 
-4. 返回 `{"code":0,"message":"ok"}`。
-5. 如边缘侧做了重试，允许重复记录，不做强幂等（可选按 action_topic + action_data + created_at 窗口去重）。
+7. Pad 不重试、无幂等要求；如边缘端补发机制导致重复，允许重复记录（可选按 action_topic + action_data + created_at 窗口去重）。
+
+## 7. 边端生产配置（VITE_EDGE_BASE_URL）
+
+现场 pad 通过 `public/config.js`（部署时以 ConfigMap 挂载，**无需重新构建镜像**）覆盖构建期变量：
+
+```js
+window.config = {
+  VITE_APP_BASE_URL: "http://10.80.142.27:1880",   // 边端 Node-RED（空间结构接口，保持不变）
+  VITE_EDGE_BASE_URL: "http://<边缘端服务地址>",     // 日志端点走这里（边缘端再经自有通道转发云端）
+  // VITE_MQTT_URL: "ws://...",
+  // VITE_MQTT_USERNAME: "...",
+  // VITE_MQTT_PASSWORD: "...",
+}
+```
+
+- 修改后 pad 页面**刷新即生效**（`index.html` 加载 `config.js` 带时间戳参数防缓存），无需重启 pad、无需重启开发/生产服务。
+- `VITE_EDGE_BASE_URL` 末尾不要带 `/api/...` 路径，只填根地址；pad 会拼 `{根地址}/api/device/doAddDeviceControlLog`。
+- 不配置该项时日志请求回退到 `VITE_APP_BASE_URL`（边端 Node-RED，未实现该端点时会 404 并静默丢弃）。
 
 ## 8. 联调验收清单
 
@@ -162,9 +147,19 @@ curl -G "http://<edge-host>/api/device/doAddDeviceControlLog" \
 
 预期：边缘端返回 200；云端落库一条，字段与 query 参数一一对应。
 
-2. **Pad 实测**：
-   - 单控一盏灯 → 两端各见 1 条「照明/单控」日志；
-   - 照明全开/全关（N 盏灯）→ 两端各见 N 条「照明/群控」日志，actionTopic 为实际群控主题（含 names）；
+2. **浏览器跨域预检**（pad 页面 origin 与边缘端不同源时必测）：
+
+```bash
+curl -i -X OPTIONS "http://<edge-host>/api/device/doAddDeviceControlLog" \
+  -H "Origin: http://10.80.142.27:1880" \
+  -H "Access-Control-Request-Method: GET" \
+  -H "Access-Control-Request-Headers: content-type"
+```
+
+预期：返回 200/204，且带 `Access-Control-Allow-Origin` / `Access-Control-Allow-Methods` / `Access-Control-Allow-Headers`。
+
+3. **Pad 实测**：
+   - 单控一盏灯 → 1 条「照明/单控」日志，浏览器 Network 里请求直发 `VITE_EDGE_BASE_URL` 域名；
+   - 照明全开/全关（N 盏灯）→ N 条「照明/群控」日志，actionTopic 为实际群控主题（含 names）；
    - 空调开关 → 「空调/群控」日志；调温/调风速 → 「空调/单控」日志。
-3. **异常路径**：停掉云端 → 边缘端仍对 Pad 返回 200，重试耗尽后本地记录日志，Pad 端无感知、控制不受影响。
-4. **一体部署**：CLOUD_BASE_URL 指向本机，重复第 1、2 步结果一致。
+4. **异常路径**：停掉边缘端 → pad 控制不受影响，日志静默失败（console 有 `[logClk] failed to post control log` 警告），恢复后下一条正常。

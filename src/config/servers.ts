@@ -6,6 +6,7 @@ export interface MqttConfig {
 
 export interface ServerConfig {
   apiBaseUrl: string
+  edgeBaseUrl: string
   mqtt: MqttConfig
 }
 
@@ -16,6 +17,8 @@ function buildConfig(): ServerConfig {
 
   return {
     apiBaseUrl: window.config?.VITE_APP_BASE_URL ?? import.meta.env.VITE_APP_BASE_URL ?? '',
+    // 操作日志等走边缘端服务的基础地址；为空时回退 apiBaseUrl（边端 Node-RED）
+    edgeBaseUrl: window.config?.VITE_EDGE_BASE_URL ?? import.meta.env.VITE_EDGE_BASE_URL ?? '',
     mqtt: {
       url: mqttUrl,
       username: mqttUser,
