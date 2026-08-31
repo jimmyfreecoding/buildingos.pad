@@ -138,7 +138,7 @@ export function useLightMqtt() {
     if (isCompleteSpaceContext(ctx.value)) {
       const c = ctx.value!
       logClk({
-        sourceName: '/运营/楼宇智控/照明/单控',
+        ctrl: '单控',
         deviceType: 'light',
         actionTopic: topic,
         actionData: JSON.stringify({ action }),
@@ -162,20 +162,18 @@ export function useLightMqtt() {
     const topic = topics.lightAction(ctx.value) + '/' + names
     console.log('[LightMqtt] setAll:', action, 'topic:', topic)
     mqtt.publish(topic, { action })
-    // 群控：按设备数记录多条单控日志，actionTopic/sourceName 均为实际群控主题与群控来源
+    // 群控：整组指令只发 1 条日志，actionTopic 为实际群控主题（含逗号拼接的 names 段）
     if (isCompleteSpaceContext(ctx.value)) {
       const c = ctx.value!
-      lights.value.devices.forEach(() => {
-        logClk({
-          sourceName: '/运营/楼宇智控/照明/群控',
-          deviceType: 'light',
-          actionTopic: topic,
-          actionData: JSON.stringify({ action }),
-          spaceCode: c.spaceCode,
-          floorCode: c.floorCode,
-          floorAreaCode: c.floorAreaCode,
-          areaCode: c.deviceCode,
-        })
+      logClk({
+        ctrl: '群控',
+        deviceType: 'light',
+        actionTopic: topic,
+        actionData: JSON.stringify({ action }),
+        spaceCode: c.spaceCode,
+        floorCode: c.floorCode,
+        floorAreaCode: c.floorAreaCode,
+        areaCode: c.deviceCode,
       })
     }
     setTimeout(() => {

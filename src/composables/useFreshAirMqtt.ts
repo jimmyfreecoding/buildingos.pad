@@ -50,7 +50,7 @@ export function useFreshAirMqtt() {
     if (!ctx.value || !isCompleteSpaceContext(ctx.value)) return
     const c = ctx.value
     logClk({
-      sourceName: '/运营/楼宇智控/新风/单控',
+      ctrl: '单控',
       deviceType: 'freshair',
       actionTopic: topic,
       actionData: JSON.stringify(payload),

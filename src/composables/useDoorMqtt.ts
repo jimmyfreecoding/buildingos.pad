@@ -56,7 +56,7 @@ export function useDoorMqtt() {
     if (isCompleteSpaceContext(ctx.value)) {
       const c = ctx.value!
       logClk({
-        sourceName: '/运营/楼宇智控/门禁/单控',
+        ctrl: '单控',
         deviceType: 'door',
         actionTopic: topic,
         actionData: JSON.stringify(payload),

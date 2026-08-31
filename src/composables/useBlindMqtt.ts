@@ -126,7 +126,7 @@ export function useBlindMqtt() {
     if (isCompleteSpaceContext(ctx.value)) {
       const c = ctx.value!
       logClk({
-        sourceName: '/运营/楼宇智控/窗帘/单控',
+        ctrl: '单控',
         deviceType: 'blind',
         actionTopic: topic,
         actionData: JSON.stringify({ action: direction }),

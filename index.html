@@ -4,7 +4,10 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="/config.js?v=<%= new Date().getTime() %>"></script>
+    <script>
+      // 运行时配置：用真实时间戳防浏览器缓存（EJS 模板在 vite build 时不会求值）
+      document.write('<script src="./config.js?v=' + Date.now() + '"><\/script>')
+    </script>
     <title>BuildingosPad</title>
     <script type="module">
       if (import.meta.hot?.on) {

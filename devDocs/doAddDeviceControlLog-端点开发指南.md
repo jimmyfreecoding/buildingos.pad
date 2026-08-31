@@ -32,7 +32,7 @@ Pad (前端)
 {
   "spaceCode": "SMART",
   "sourceType": "PAD",
-  "sourceName": "/运营/楼宇智控/照明/单控",
+  "sourceName": "/智谱园区/北区/1F/茶水间/大厅墙面屏/light/单控",
   "floorCode": "3F",
   "floorAreaCode": "ZB",
   "areaCode": "3FBNW",
@@ -48,7 +48,7 @@ Pad (前端)
 |---|---|---|
 | spaceCode | string/number | 属地编码（如 SMART） |
 | sourceType | string | 固定 `PAD`（来源为 Pad） |
-| sourceName | string | 操作来源，见第 3 节枚举 |
+| sourceName | string | 操作来源，按第 3 节规则动态拼接 |
 | floorCode | string | 楼层 code（如 3F） |
 | floorAreaCode | string | 楼层区域 code（如 ZB） |
 | areaCode | string | 设备区/房间 code，即 MQTT 主题的 deviceCode 段 |
@@ -56,24 +56,23 @@ Pad (前端)
 | actionTopic | string | **实际发布的 MQTT 控制主题**（原始完整 topic，群控含逗号拼接的 names 段） |
 | actionData | string | **实际发布的 MQTT payload 的 JSON 字符串**（原样记录，勿解析） |
 
-## 3. sourceName 约定（当前枚举）
+## 3. sourceName 拼接规则
 
-| 操作 | sourceName |
-|---|---|
-| 照明单控 | `/运营/楼宇智控/照明/单控` |
-| 照明群控 | `/运营/楼宇智控/照明/群控` |
-| 空调开关群控 | `/运营/楼宇智控/空调/群控` |
-| 空调温度/模式/风速/单机开关 | `/运营/楼宇智控/空调/单控` |
-| 窗帘升降/暂停 | `/运营/楼宇智控/窗帘/单控` |
-| 门禁开锁 | `/运营/楼宇智控/门禁/单控` |
-| 新风开关/模式 | `/运营/楼宇智控/新风/单控` |
-| 插座开关 | `/运营/楼宇智控/插座/单控` |
+sourceName 按实际名称动态拼接：
+
+```
+/{spaceName}/{floorAreaName}/{floorName}/{areaName}/{padName}/{deviceType}/{群控|单控}
+```
+
+- 名称取自 pad 绑定信息（initData），某段名称缺失时回退对应 code（保证各段非空）；
+- `padName` 为设备配置中 pad 的名称（与心跳主题 `/iot/status/pad/...` 末段一致），设备配置未到达时该段为空；
+- 末段：群控操作（照明全开/全关、空调开关）为「群控」，其余（单灯、空调温度/模式/风速/单机开关、窗帘、门禁、新风、插座）为「单控」；
+- 示例：`/智谱园区/北区/1F/茶水间/大厅墙面屏/light/单控`。
 
 ## 4. 群控语义（重要）
 
-- Pad 对群控**按设备数发送多条日志记录**（N 台设备 = N 条），每条记录的 `actionTopic` 都是**实际群控主题**（不是拆成单设备主题），`sourceName` 为对应的「群控」值。
+- Pad 对群控**只发送 1 条日志记录**（与受控设备数无关），`actionTopic` 为**实际群控主题**（含逗号拼接的 names 段，不拆成单设备主题），`sourceName` 为对应的「群控」值。
 - 后端按条入库即可，不需要聚合、不需要去重拆分。
-- 空调群控在设备列表未知时至少发送 1 条。
 
 ## 5. Pad 端行为约定（边缘端实现需知）
 
@@ -97,7 +96,7 @@ CREATE TABLE device_control_log (
   id             BIGSERIAL PRIMARY KEY,
   space_code     VARCHAR(64),
   source_type    VARCHAR(16),
-  source_name    VARCHAR(128),
+  source_name    VARCHAR(256),
   floor_code     VARCHAR(64),
   floor_area_code VARCHAR(64),
   area_code      VARCHAR(64),
@@ -136,7 +135,7 @@ window.config = {
 curl -G "http://<edge-host>/api/device/doAddDeviceControlLog" \
   --data-urlencode "spaceCode=SMART" \
   --data-urlencode "sourceType=PAD" \
-  --data-urlencode "sourceName=/运营/楼宇智控/照明/单控" \
+  --data-urlencode "sourceName=/智谱园区/北区/1F/茶水间/大厅墙面屏/light/单控" \
   --data-urlencode "floorCode=3F" \
   --data-urlencode "floorAreaCode=ZB" \
   --data-urlencode "areaCode=3FBNW" \
@@ -159,7 +158,7 @@ curl -i -X OPTIONS "http://<edge-host>/api/device/doAddDeviceControlLog" \
 预期：返回 200/204，且带 `Access-Control-Allow-Origin` / `Access-Control-Allow-Methods` / `Access-Control-Allow-Headers`。
 
 3. **Pad 实测**：
-   - 单控一盏灯 → 1 条「照明/单控」日志，浏览器 Network 里请求直发 `VITE_EDGE_BASE_URL` 域名；
-   - 照明全开/全关（N 盏灯）→ N 条「照明/群控」日志，actionTopic 为实际群控主题（含 names）；
-   - 空调开关 → 「空调/群控」日志；调温/调风速 → 「空调/单控」日志。
+   - 单控一盏灯 → 1 条日志，sourceName 按第 3 节规则拼接、末段「单控」，浏览器 Network 里请求直发 `VITE_EDGE_BASE_URL` 域名；
+   - 照明全开/全关（N 盏灯）→ 1 条日志，sourceName 末段「群控」，actionTopic 为实际群控主题（含 names）；
+   - 空调开关 → sourceName 末段「群控」；调温/调风速 → 末段「单控」。
 4. **异常路径**：停掉边缘端 → pad 控制不受影响，日志静默失败（console 有 `[logClk] failed to post control log` 警告），恢复后下一条正常。

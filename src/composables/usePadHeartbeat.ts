@@ -4,6 +4,7 @@ import { useSpaceStore } from '@/stores/space'
 import { useMqtt } from '@/utils/useMqtt'
 import { topics } from '@/utils/mqtt'
 import { isCompleteSpaceContext } from '@/utils/mqttTopics'
+import { setPadName } from '@/utils/logClk'
 
 export type PadHeartbeatKind =
   | 'wallPad'
@@ -133,6 +134,7 @@ export function usePadHeartbeat(kind: PadHeartbeatKind) {
           layer: p.layer ?? '',
           status: { online: 1, status: 'busy' },
         }
+        setPadName(p.name)
       }
     }))
 

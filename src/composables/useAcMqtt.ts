@@ -165,22 +165,20 @@ export function useAcMqtt() {
     }, delay)
   }
 
-  // 控制指令操作日志：群控按设备数记录多条（至少 1 条），单控 1 条
-  const logAc = (sourceName: string, topic: string, payload: Record<string, unknown>, count = 1) => {
+  // 控制指令操作日志：群控/单控均只发 1 条，actionTopic 为实际发布主题
+  const logAc = (ctrl: '群控' | '单控', topic: string, payload: Record<string, unknown>) => {
     if (!ctx.value || !isCompleteSpaceContext(ctx.value)) return
     const c = ctx.value
-    for (let i = 0; i < count; i++) {
-      logClk({
-        sourceName,
-        deviceType: 'airconditioning',
-        actionTopic: topic,
-        actionData: JSON.stringify(payload),
-        spaceCode: c.spaceCode,
-        floorCode: c.floorCode,
-        floorAreaCode: c.floorAreaCode,
-        areaCode: c.deviceCode,
-      })
-    }
+    logClk({
+      ctrl,
+      deviceType: 'airconditioning',
+      actionTopic: topic,
+      actionData: JSON.stringify(payload),
+      spaceCode: c.spaceCode,
+      floorCode: c.floorCode,
+      floorAreaCode: c.floorAreaCode,
+      areaCode: c.deviceCode,
+    })
   }
 
   const togglePower = () => {
@@ -189,7 +187,7 @@ export function useAcMqtt() {
     const topic = topics.acAction(ctx.value)
     console.log('[AcMqtt] togglePower:', action, 'topic:', topic)
     mqtt.publish(topic, { action })
-    logAc('/运营/楼宇智控/空调/群控', topic, { action }, Math.max(ac.value.devices.length, 1))
+    logAc('群控', topic, { action })
     queryGroupStatus()
   }
 
@@ -199,7 +197,7 @@ export function useAcMqtt() {
     const topic = topics.acAction(ctx.value)
     console.log('[AcMqtt] setTemp:', delta, '→', newTemp, 'topic:', topic)
     mqtt.publish(topic, { action: 'setTemp', value: newTemp })
-    logAc('/运营/楼宇智控/空调/单控', topic, { action: 'setTemp', value: newTemp })
+    logAc('单控', topic, { action: 'setTemp', value: newTemp })
     queryGroupStatus()
   }
 
@@ -208,7 +206,7 @@ export function useAcMqtt() {
     const topic = topics.acAction(ctx.value)
     console.log('[AcMqtt] setMode:', mode, 'topic:', topic)
     mqtt.publish(topic, { action: 'setMode', value: mode })
-    logAc('/运营/楼宇智控/空调/单控', topic, { action: 'setMode', value: mode })
+    logAc('单控', topic, { action: 'setMode', value: mode })
     queryGroupStatus()
   }
 
@@ -217,7 +215,7 @@ export function useAcMqtt() {
     const topic = topics.acAction(ctx.value)
     console.log('[AcMqtt] setSpeed:', speed, 'topic:', topic)
     mqtt.publish(topic, { action: 'setSpeed', value: speed })
-    logAc('/运营/楼宇智控/空调/单控', topic, { action: 'setSpeed', value: speed })
+    logAc('单控', topic, { action: 'setSpeed', value: speed })
     queryGroupStatus()
   }
 
@@ -230,7 +228,7 @@ export function useAcMqtt() {
     if (on) {
       console.log('[AcMqtt] toggleDevicePower:', device.name, '-> off', 'topic:', topic)
       mqtt.publish(topic, { action: 'off' })
-      logAc('/运营/楼宇智控/空调/单控', topic, { action: 'off' })
+      logAc('单控', topic, { action: 'off' })
       applyOptimistic(device.id, { status: 'off' })
       queryDeviceStatus(device.name)
     } else {
@@ -264,7 +262,7 @@ export function useAcMqtt() {
     const payload = { action: 'on', temperature: overrides.temp ?? nums.temp, mode: overrides.mode ?? nums.mode, fan: overrides.fan ?? nums.fan }
     console.log('[AcMqtt] publishOn:', device.name, 'topic:', topic, 'payload:', JSON.stringify(payload))
     mqtt.publish(topic, payload)
-    logAc('/运营/楼宇智控/空调/单控', topic, payload)
+    logAc('单控', topic, payload)
     applyOptimistic(device.id, {
       status: 'on',
       pretemperature: payload.temperature,
