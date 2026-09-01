@@ -36,6 +36,8 @@ import ZhaomingPanel from './components/ZhaomingPanel.vue'
 import RoomUsePanel from './components/RoomUsePanel.vue'
 import BgVideo from './components/BgVideo.vue'
 import IntelligentPanel from './components/IntelligentPanel.vue'
+import MapCanvas from '@/components/MapCanvas.vue'
+import { destroyMap } from '@/services/mapViewer'
 
 // ====== Screen state ======
 const drawer = ref(false)
@@ -165,6 +167,7 @@ onUnmounted(() => {
   window.removeEventListener('mousedown', onUserActivity)
   window.removeEventListener('keydown', onUserActivity)
   clearIdleTimer()
+  destroyMap()
 })
 const serviceGaojingFun = () => { sosConfirm() }
 const syncLight = (light: any) => { currentLight.value = light; toggleLight(light) }
@@ -399,11 +402,20 @@ const floorImg = new URL('./assets/images/floor.jpg', import.meta.url).href
               <IntelligentPanel v-if="obj.floor === '54F' ? tabIndex === 3 : tabIndex === 4" :space-name="obj.spaceName"></IntelligentPanel>
             </div>
 
-            <div v-if="[1,2,3].includes(tabIndex)" style="width:800px;height:100%;background:#161616;z-index:2;flex:none;position:relative;left:-2px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-              <img :src="floorImg" style="max-width:100%;max-height:100%;object-fit:contain;display:block;" />
-            </div>
+            <!-- 2.5D 地图由 drawer 外持久 MapCanvas 覆盖层渲染，此处仅保留 800px 布局占位 -->
+            <div v-if="[1,2,3].includes(tabIndex)" style="width:800px;height:100%;background:#161616;z-index:2;flex:none;position:relative;left:-2px;"></div>
           </div>
         </el-drawer>
+
+        <!-- 2.5D 地图持久覆盖层：drawer destroy-on-close 会销毁内部 DOM，canvas 必须活在 drawer 外 -->
+        <MapCanvas
+          v-show="drawer && [1,2,3].includes(tabIndex)"
+          style="position:absolute;right:-2px;top:0;bottom:0;width:800px;z-index:4;background:#161616;"
+        >
+          <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
+            <img :src="floorImg" style="max-width:100%;max-height:100%;object-fit:contain;display:block;" />
+          </div>
+        </MapCanvas>
       </div>
 
       <!-- ==================== 卫生间屏幕 ==================== -->

@@ -5,6 +5,7 @@ import AppLogo from '../components/AppLogo.vue'
 import TimeWidget from '../components/TimeWidget.vue'
 import { Lightbulb, Home } from 'lucide-vue-next'
 import { useLightMqtt } from '@/composables/useLightMqtt'
+import MapCanvas from '@/components/MapCanvas.vue'
 
 const emit = defineEmits(['close'])
 
@@ -119,33 +120,36 @@ const mapMarkers = [
       <!-- Right Column (Map) -->
       <div class="col-span-4 h-full">
          <BaseCard className="h-full !border-white/5 !bg-white/5 !rounded-3xl p-0 overflow-hidden relative">
-            <div class="absolute inset-0 bg-[#1a1a1a] flex items-center justify-center">
-               <div class="w-[80%] h-[70%] border-2 border-white/10 rounded-3xl transform rotate-12 relative">
-                  <div class="absolute top-0 right-0 w-1/3 h-full border-l-2 border-white/10 bg-white/5"></div>
-                  <div class="absolute bottom-10 left-10 text-white/20 text-4xl font-bold rotate-[-12deg]">2604会议室</div>
-               </div>
-            </div>
-
-            <div
-              v-for="marker in mapMarkers"
-              :key="marker.id"
-              class="absolute transform -translate-x-1/2 -translate-y-full cursor-pointer hover:scale-110 transition-transform z-10"
-              :style="{ left: `${marker.x + 20}%`, top: `${marker.y + 10}%` }"
-            >
-               <div class="flex flex-col items-center">
-                  <div class="bg-white text-black text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow-lg whitespace-nowrap">
-                     <Lightbulb class="w-3 h-3 text-orange-500 fill-orange-500" />
-                     {{ marker.label }}
+            <MapCanvas>
+               <!-- 兜底：CSS 伪地图 -->
+               <div class="absolute inset-0 bg-[#1a1a1a] flex items-center justify-center">
+                  <div class="w-[80%] h-[70%] border-2 border-white/10 rounded-3xl transform rotate-12 relative">
+                     <div class="absolute top-0 right-0 w-1/3 h-full border-l-2 border-white/10 bg-white/5"></div>
+                     <div class="absolute bottom-10 left-10 text-white/20 text-4xl font-bold rotate-[-12deg]">2604会议室</div>
                   </div>
-                  <div class="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-white"></div>
                </div>
-            </div>
 
-            <div class="absolute top-6 left-6 flex flex-col gap-2">
-               <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center backdrop-blur-md border border-white/10">
-                  <span class="text-xs">1F</span>
+               <div
+                 v-for="marker in mapMarkers"
+                 :key="marker.id"
+                 class="absolute transform -translate-x-1/2 -translate-y-full cursor-pointer hover:scale-110 transition-transform z-10"
+                 :style="{ left: `${marker.x + 20}%`, top: `${marker.y + 10}%` }"
+               >
+                  <div class="flex flex-col items-center">
+                     <div class="bg-white text-black text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow-lg whitespace-nowrap">
+                        <Lightbulb class="w-3 h-3 text-orange-500 fill-orange-500" />
+                        {{ marker.label }}
+                     </div>
+                     <div class="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-white"></div>
+                  </div>
                </div>
-            </div>
+
+               <div class="absolute top-6 left-6 flex flex-col gap-2">
+                  <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center backdrop-blur-md border border-white/10">
+                     <span class="text-xs">1F</span>
+                  </div>
+               </div>
+            </MapCanvas>
          </BaseCard>
       </div>
 

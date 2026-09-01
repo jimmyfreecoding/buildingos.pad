@@ -4,6 +4,7 @@ import BaseCard from '../components/BaseCard.vue'
 import AppLogo from '../components/AppLogo.vue'
 import TimeWidget from '../components/TimeWidget.vue'
 import { User, Users, Home } from 'lucide-vue-next'
+import MapCanvas from '@/components/MapCanvas.vue'
 
 // Define Emits
 const emit = defineEmits(['close'])
@@ -80,41 +81,45 @@ const getCardColor = (status: string) => {
       <!-- Right Column (Map) -->
       <div class="col-span-4 h-full">
          <BaseCard className="h-full !border-white/5 !bg-white/5 !rounded-3xl p-0 overflow-hidden relative flex items-center justify-center">
-            <!-- Map Container -->
-            <div class="relative w-[90%] aspect-square bg-[#1a1a1a] rounded-full border-4 border-white/5 flex items-center justify-center overflow-hidden">
-               <!-- Octagonal Base Shape (CSS Clip Path) -->
-               <div class="absolute inset-4 bg-white/5 clip-octagon"></div>
+            <div class="relative w-[90%] aspect-square">
+               <MapCanvas>
+                  <!-- 兜底：CSS 伪地图 -->
+                  <div class="relative w-full h-full bg-[#1a1a1a] rounded-full border-4 border-white/5 flex items-center justify-center overflow-hidden">
+                     <!-- Octagonal Base Shape (CSS Clip Path) -->
+                     <div class="absolute inset-4 bg-white/5 clip-octagon"></div>
 
-               <!-- Areas -->
-               <div 
-                  v-for="area in mapAreas"
-                  :key="area.id"
-                  class="absolute flex flex-col items-center justify-center text-center p-2 rounded-lg transition-all cursor-pointer hover:brightness-110"
-                  :class="getStatusColor(area.status)"
-                  :style="{ 
-                    left: `${area.x}%`, 
-                    top: `${area.y}%`, 
-                    width: `${area.w}%`, 
-                    height: `${area.h}%` 
-                  }"
-               >
-                  <div class="flex items-center gap-1 mb-1" v-if="area.type.startsWith('wc')">
-                     <User class="w-4 h-4" />
-                     <span class="text-sm font-bold">{{ area.label }}</span>
-                  </div>
-                  <span v-else class="text-xs font-bold mb-1">{{ area.label }}</span>
-                  
-                  <span class="text-xs opacity-90">{{ area.sub }}</span>
+                     <!-- Areas -->
+                     <div
+                        v-for="area in mapAreas"
+                        :key="area.id"
+                        class="absolute flex flex-col items-center justify-center text-center p-2 rounded-lg transition-all cursor-pointer hover:brightness-110"
+                        :class="getStatusColor(area.status)"
+                        :style="{
+                          left: `${area.x}%`,
+                          top: `${area.y}%`,
+                          width: `${area.w}%`,
+                          height: `${area.h}%`
+                        }"
+                     >
+                        <div class="flex items-center gap-1 mb-1" v-if="area.type.startsWith('wc')">
+                           <User class="w-4 h-4" />
+                           <span class="text-sm font-bold">{{ area.label }}</span>
+                        </div>
+                        <span v-else class="text-xs font-bold mb-1">{{ area.label }}</span>
 
-                  <!-- Red dots for male WC -->
-                  <div v-if="area.id === 'male-wc'" class="flex gap-1 mt-1 justify-center">
-                     <div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>
-                     <div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>
+                        <span class="text-xs opacity-90">{{ area.sub }}</span>
+
+                        <!-- Red dots for male WC -->
+                        <div v-if="area.id === 'male-wc'" class="flex gap-1 mt-1 justify-center">
+                           <div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>
+                           <div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>
+                        </div>
+                     </div>
+
+                     <!-- Center Hub -->
+                     <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1/4 h-1/4 bg-white/5 rounded-xl border border-white/10"></div>
                   </div>
-               </div>
-               
-               <!-- Center Hub -->
-               <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1/4 h-1/4 bg-white/5 rounded-xl border border-white/10"></div>
+               </MapCanvas>
             </div>
          </BaseCard>
       </div>

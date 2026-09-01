@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { destroyMap } from '@/services/mapViewer'
 import { AppConfig } from '@/config'
 import { useCockpitStore } from '@/stores/cockpit'
 import AppBackground from '@/components/AppBackground.vue'
@@ -76,6 +77,11 @@ const handleDockClick = (item: any) => {
     showSOSDialog.value = true
   }
 }
+
+// 路由切换时释放 2.5D 地图单例（WebGL 上下文等资源）
+onUnmounted(() => {
+  destroyMap()
+})
 </script>
 
 <template>
