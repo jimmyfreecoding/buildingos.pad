@@ -6,8 +6,8 @@ import { useZeekrData } from './useZeekrData'
 
 const {
   obj, isWuxiui, sosAnimate, sosAnimateDia, disabledSos,
-  inside, outside, bgParams, lights, lightobj, acobj,
-  blind, blind2, air2, roomoSensorObj, meetingRooms,
+  inside, outside, bgParams, lights, acobj,
+  blind, roomoSensorObj, meetingRooms,
   wcmanStatusObj, wcwomanStatusObj, wcmanStatusLive, wcwomanStatusLive, wcmanOtherFloorObj, wcmanOtherFloorObj2,
   wcwomanOtherFloorObj, ceowcStatusObj, ceowcStatusObj2,
   baojie, mapData, otherFloor, otherFloor2, airsensorMap,
@@ -390,8 +390,8 @@ const floorImg = new URL('./assets/images/floor.jpg', import.meta.url).href
               <HuanjingPanel v-if="tabIndex === 1" :inside="inside" :outside="outside" :obj="obj"></HuanjingPanel>
               <ZhaomingPanel
                 v-if="tabIndex === 2"
-                :lights="lights" :lightobj="lightobj" :acobj="acobj" :inside="inside"
-                :blind="blind" :blind2="blind2" :air2="air2" :obj="obj"
+                :lights="lights" :acobj="acobj"
+                :blind="blind" :obj="obj"
                 @syncLight="syncLight" @syncAllLight="syncAllLight" @syncLightStatus="syncLightStatus"
                 @syncAcPower="syncAcPower" @syncAcTemp="syncAcTemp" @syncAcMode="syncAcMode" @syncAcSpeed="syncAcSpeed" @syncBlind="syncBlind"
               ></ZhaomingPanel>

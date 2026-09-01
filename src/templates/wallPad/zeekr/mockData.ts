@@ -23,7 +23,7 @@ export const sosAnimate = ref(false)
 export const sosAnimateDia = ref(false)
 export const disabledSos = ref(false)
 
-// ====== 室内环境数据 ======
+// ====== 室内环境数据（传感器兜底） ======
 export const inside = ref({
   co2: 552,
   formaldehyde: 0.015,
@@ -56,44 +56,7 @@ export const bgParams = reactive({
   urls: [{ url: '' }],
 })
 
-// ====== 照明设备 ======
-export const lights = ref([
-  {
-    id: '1',
-    name: 'A区照明1',
-    floorAreaCode: 'GXBGQ2',
-    floorCode: '1F',
-    areaCode: 'ZSDS',
-    status: 1, // 0:关, 1:开
-    online: 1,
-    type: 'light',
-  },
-  {
-    id: '2',
-    name: 'A区照明2',
-    floorAreaCode: 'GXBGQ2',
-    floorCode: '1F',
-    areaCode: 'ZSDS',
-    status: 0,
-    online: 1,
-    type: 'light',
-  },
-])
-
-export const lightobj = ref([
-  { name: '照明 1', status: 1 },
-  { name: '照明 2', status: 0 },
-])
-
-// ====== 空调 ======
-export const acobj = ref([])
-
-// ====== 窗帘 ======
-export const blind = ref([])
-export const blind2 = ref([])
-export const air2 = ref([])
-
-// ====== 卫生间占位 ======
+// ====== 卫生间占位（传感器兜底） ======
 export const wcmanStatusObj = ref<WcStatusObj>({
   '1': 0,
   '2': 1,

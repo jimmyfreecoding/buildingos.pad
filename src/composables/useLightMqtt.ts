@@ -62,7 +62,8 @@ export function useLightMqtt() {
 
     unsubs.push(mqtt.onMessage(configResponseTopic, (payload: unknown) => {
       const raw = payload as any
-      if (raw?.light) {
+      // 空数组视为无效响应（通信异常/配置未就绪），不清空已有设备；仅非空才更新（含真实增删改）
+      if (Array.isArray(raw?.light) && raw.light.length > 0) {
         const lightDevices: LightDevice[] = raw.light.map((d: any) => ({
           id: d.code || d.name,
           name: d.name,

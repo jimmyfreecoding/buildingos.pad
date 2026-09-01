@@ -65,7 +65,7 @@ export function useZeekrData() {
     }
   })
 
-  // --- Indoor environment ---
+  // --- Indoor environment: 传感器数据保留 mock 兜底 ---
   const inside = computed(() => {
     if (isConnected.value && airQuality.value) {
       const aq = airQuality.value
@@ -83,23 +83,18 @@ export function useZeekrData() {
     return mock.inside.value
   })
 
-  // --- Lighting ---
+  // --- Lighting: 永不回退 mock；断连/未获取到时展示 store 中已有设备（可为空）
   const lights = computed(() => {
-    if (isConnected.value && mqttLights.value?.devices?.length) {
-      return mqttLights.value.devices.map((d) => ({
-        name: d.name,
-        status: d.status?.status === 'on' || d.status?.status === 1 ? 1 : 0,
-        online: 1,
-      }))
-    }
-    return mock.lights.value
+    return (mqttLights.value?.devices ?? []).map((d) => ({
+      name: d.name,
+      status: d.status?.status === 'on' || d.status?.status === 1 ? 1 : 0,
+      online: 1,
+    }))
   })
 
-  const lightobj = mock.lightobj
-
-  // --- AC ---
+  // --- AC: 仅真实设备，未获取到时为空 ---
   const acobj = computed(() => {
-    if (isConnected.value && mqttAc.value?.devices?.length) {
+    if (mqttAc.value?.devices?.length) {
       return [{
         name: '空调',
         power: mqttAc.value.power,
@@ -110,18 +105,18 @@ export function useZeekrData() {
         devices: mqttAc.value.devices,
       }]
     }
-    return mock.acobj.value
+    return []
   })
 
-  // --- Blinds ---
+  // --- Blinds: 仅真实设备，未获取到时为空 ---
   const blind = computed(() => {
-    if (isConnected.value && mqttBlind.value?.devices?.length) {
+    if (mqttBlind.value?.devices?.length) {
       return [{ position: mqttBlind.value.position }]
     }
-    return mock.blind.value
+    return []
   })
 
-  // --- WC Sensors ---
+  // --- WC Sensors: 传感器数据保留 mock 兜底 ---
   const wcmanStatusObj = computed(() => {
     if (isConnected.value && wcSensors.value?.length) {
       const tman = wcSensors.value.find((s) => s.room === 'TMAN')
@@ -179,17 +174,10 @@ export function useZeekrData() {
 
   // --- Light actions (MQTT only when connected AND binding complete; otherwise local state) ---
   const toggleLight = (light: any) => {
-    if (isConnected.value && isCompleteSpaceContext(lightCtx.value)) {
-      const device = mqttLights.value?.devices?.find((d) => d.name === light.name)
-      if (device) {
-        mqttToggleLight(device.id)
-        return
-      }
-    }
-    // Fallback: local toggle（断连或绑定不完整时，绝不发 MQTT）
-    const idx = mock.lights.value.findIndex((l: any) => l.name === light.name)
-    if (idx !== -1) {
-      mock.lights.value[idx].status = mock.lights.value[idx].status === 1 ? 0 : 1
+    if (!isConnected.value || !isCompleteSpaceContext(lightCtx.value)) return
+    const device = mqttLights.value?.devices?.find((d) => d.name === light.name)
+    if (device) {
+      mqttToggleLight(device.id)
     }
   }
 
@@ -198,8 +186,7 @@ export function useZeekrData() {
       mqttSetAll(on)
       return
     }
-    console.warn('[useZeekrData] setAllLights: binding incomplete or disconnected — local state only')
-    mock.lights.value.forEach((l: any) => { l.status = on ? 1 : 0 })
+    console.warn('[useZeekrData] setAllLights: binding incomplete or disconnected — skipped')
   }
 
   // --- Blind action ---
@@ -240,7 +227,6 @@ export function useZeekrData() {
     disabledSos: mock.disabledSos,
     outside: mock.outside,
     bgParams: mock.bgParams,
-    air2: mock.air2,
     roomoSensorObj,
     meetingRooms,
     wcmanOtherFloorObj: mock.wcmanOtherFloorObj,
@@ -255,13 +241,11 @@ export function useZeekrData() {
     otherFloor2: mock.otherFloor2,
     airsensorMap: mock.airsensorMap,
 
-    // Dynamic (MQTT with mock fallback)
+    // Dynamic (真实设备数据)
     inside,
     lights,
-    lightobj,
     acobj,
     blind,
-    blind2: mock.blind2,
     wcmanStatusObj,
     wcwomanStatusObj,
     wcmanStatusLive,

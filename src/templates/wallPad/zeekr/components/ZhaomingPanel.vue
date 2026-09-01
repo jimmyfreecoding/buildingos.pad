@@ -5,12 +5,8 @@ defineOptions({ inheritAttrs: false })
 
 const props = defineProps<{
   lights: any[]
-  lightobj: any[]
   acobj: any[]
-  inside: any
   blind: any[]
-  blind2: any[]
-  air2: any[]
   obj: any
 }>()
 
@@ -77,7 +73,6 @@ watch(acDisplay, (val) => {
 const TEMP_CONTROL_FLOORS = ['34F', '35F', '54F']
 const airControlDisplay = computed(() => TEMP_CONTROL_FLOORS.includes(props.obj?.floor))
 const blindShow = computed(() => props.blind?.length > 0)
-const blind2Show = computed(() => props.blind2?.length > 0)
 
 const errorList = computed(() => {
   if (!props.acobj?.length) return []
@@ -179,7 +174,7 @@ const chuanglian3 = new URL('../assets/images/chuanglian3.png', import.meta.url)
 </script>
 
 <template>
-  <div class="left-box-box" :style="blind2Show ? 'overflow-y: auto' : ''">
+  <div class="left-box-box">
     <!-- ====== 照明控制 ====== -->
     <div class="index-title-box flex-row align-center">
       <div class="txt">{{ obj.floor }} {{ obj.name }} 照明控制</div>
