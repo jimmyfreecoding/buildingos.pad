@@ -138,3 +138,15 @@ curl -i -X OPTIONS "http://{edge-host}/files/space/SMART/ZB/3F/3FBNW/map/3F.acma
 # - 仅含 mapimage → 显示图片
 # - 均无 → 显示内置静态兜底，页面无报错弹窗
 ```
+
+## 7. 边缘端实现记录（2026-09，buildingos.ai edge/server）
+
+- **已实现**：`edge/server/src/filesync/filesync.controller.ts` 新增 `GET /api/space/getSpaceFiles`（同文件中的 `/api/asset/file` 即文件字节端点）。
+- **匹配规则**（与上文 2.1 对齐，按现有 file_asset 数据模型落地）：
+  - 数据源：边缘 PG `file_asset`（filesync 同步的 `map` / `mapImage`，`deleted=false`）；
+  - 必选 `spaceCode`，缺失返回空清单（code 0）；
+  - `floorCode` 非空时按文件名过滤：`{floorCode}.{ext}` 或 `{时间戳}_{floorCode}.{ext}`（正则 `^(?:\d+_)?{floorCode}\.[^.]+$`，大小写不敏感）；
+  - `floorAreaCode` / `deviceCode` 当前仅作绑定上下文保留，不参与匹配（file_asset 无这两维）。
+- **files[].url**：返回本端绝对地址 `http://{host}/api/asset/file?spaceCode=&asset_type=&file=`（同源，Pad 无需 CORS）；Pad 端 `resolveUrl` 对相对路径也有兼容。
+- **CORS**：边缘后端 `enableCors()` 全局开启，跨源开发（Pad dev 5174 → 边缘）亦可直连。
+- **命名约定（上线前提）**：素材库上传地图文件时，文件名必须含楼层码（如 `3F.acmap`、`173..._3F.acmap`、`3F.png`），否则匹配不到该楼层、Pad 走静态兜底。
