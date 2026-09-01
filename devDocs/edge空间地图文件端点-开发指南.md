@@ -147,6 +147,6 @@ curl -i -X OPTIONS "http://{edge-host}/files/space/SMART/ZB/3F/3FBNW/map/3F.acma
   - 必选 `spaceCode`，缺失返回空清单（code 0）；
   - `floorCode` 非空时按文件名过滤：`{floorCode}.{ext}` 或 `{时间戳}_{floorCode}.{ext}`（正则 `^(?:\d+_)?{floorCode}\.[^.]+$`，大小写不敏感）；
   - `floorAreaCode` / `deviceCode` 当前仅作绑定上下文保留，不参与匹配（file_asset 无这两维）。
-- **files[].url**：返回本端绝对地址 `http://{host}/api/asset/file?spaceCode=&asset_type=&file=`（同源，Pad 无需 CORS）；Pad 端 `resolveUrl` 对相对路径也有兼容。
+- **files[].url**：返回**相对路径** `/api/asset/file?spaceCode=&asset_type=&file=`，Pad 端 `resolveUrl` 会以 `VITE_EDGE_BASE_URL`（带端口，如 `http://<edge>:7828`）补全。**不要**用 req.host 拼绝对地址——边缘 nginx `proxy_set_header Host $host` 会丢端口，导致下载缺 `:7828`。
 - **CORS**：边缘后端 `enableCors()` 全局开启，跨源开发（Pad dev 5174 → 边缘）亦可直连。
 - **命名约定（上线前提）**：素材库上传地图文件时，文件名必须含楼层码（如 `3F.acmap`、`173..._3F.acmap`、`3F.png`），否则匹配不到该楼层、Pad 走静态兜底。
