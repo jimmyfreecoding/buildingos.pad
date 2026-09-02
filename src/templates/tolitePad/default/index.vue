@@ -150,26 +150,32 @@ const metrics = computed(() => {
             <h1 class="text-4xl font-medium mb-8 z-10 tracking-widest">{{ title }}</h1>
 
             <!-- 厕位状态：每个绑定卫生间一块（名称+性别+厕位），粉色=女卫 / 绿红=男卫；
-                 单间 6 个以内一行，超过分两行且列对齐 -->
-            <div class="w-full max-w-4xl px-8 z-10 flex-1 min-h-0 flex flex-col justify-center gap-6 overflow-hidden">
+                 多间/多行一律左对齐，便于对比 -->
+            <div class="w-full max-w-4xl px-8 z-10 flex-1 min-h-0 flex flex-col justify-center items-start gap-7 overflow-hidden">
               <div
                 v-for="toilet in toiletRows"
                 :key="toilet.code"
-                class="flex flex-col items-center gap-3 shrink-0"
+                class="flex flex-col items-start gap-3 shrink-0 w-full"
               >
-            
+                <div class="flex items-center gap-3">
+                  <span class="text-[clamp(1.25rem,1.8vw,1.75rem)] font-medium text-white/90 tracking-wide">{{ toilet.name || '卫生间' }}</span>
+                  <span
+                    class="px-3 py-0.5 rounded-full text-sm font-medium shrink-0"
+                    :class="toilet.isWomen
+                      ? 'bg-pink-500/15 text-pink-300 border border-pink-400/40'
+                      : 'bg-sky-500/15 text-sky-300 border border-sky-400/40'"
+                  >{{ toilet.isWomen ? '女卫' : '男卫' }}</span>
+                </div>
                 <div v-if="toilet.rows.length > 0" class="flex flex-col gap-4">
                   <div
                     v-for="(row, ri) in toilet.rows"
                     :key="ri"
-                    class="grid w-full justify-center"
-                    :style="{ gridTemplateColumns: `repeat(${row.cols}, minmax(0, 1fr))`, columnGap: '2rem' }"
+                    class="flex justify-start gap-6 xl:gap-8"
                   >
                     <div
                       v-for="(status, idx) in row.stalls"
                       :key="idx"
-                      class="flex items-center justify-center"
-                      :style="row.offset > 0 && idx === 0 ? { gridColumn: row.offset + 1 } : undefined"
+                      class="shrink-0"
                     >
                       <div
                         class="w-[clamp(2.75rem,6vw,4rem)] h-[clamp(2.75rem,6vw,4rem)] rounded-full shadow-lg transition-all duration-500 hover:scale-105 shrink-0"
