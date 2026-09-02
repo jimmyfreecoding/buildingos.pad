@@ -8,7 +8,7 @@ import QualityCard from '@/components/QualityCard.vue'
 import { useToliteData } from './useToliteData'
 
 const router = useRouter()
-const { floorName, roomName, genderLabel, stallRows, nearbyList, airDisplay, cleaningDisplay, bgVideo } = useToliteData()
+const { floorName, title, toiletRows, nearbyList, airDisplay, cleaningDisplay, bgVideo } = useToliteData()
 
 const logoUrl = new URL('./assets/images/geely.png', import.meta.url).href
 
@@ -32,19 +32,17 @@ const onLogoClick = () => {
 }
 onUnmounted(() => { if (logoTapTimer) clearTimeout(logoTapTimer) })
 
-// 标题直接显示绑定卫生间的名称（如 "2F北女卫"）
-const title = computed(() => roomName.value || `${floorLabel.value} ${genderLabel.value}`)
-const floorLabel = computed(() => floorName || '—')
-
-// 厕位 dot：0 空闲(绿) / 1 占用(红) / null 未知(灰)
-const stallColor = (status: number | null) => {
+// 厕位 dot：粉色=女卫（占用深粉/空闲浅粉），绿/红=男卫；null 未知(灰)
+const stallColor = (status: number | null, isWomen = false) => {
   if (status === null) return 'bg-white/15'
+  if (isWomen) return status === 1 ? 'bg-[#ec4899]' : 'bg-[#f9a8d4]'
   return status === 1 ? 'bg-[#ef4444]' : 'bg-[#4ade80]'
 }
 
 // 最近保洁时间（无数据显示“未知”）
 const cleaningTime = computed(() => cleaningDisplay.value?.time || '未知')
 const cleaningDate = computed(() => cleaningDisplay.value?.date || '')
+const cleaningRoom = computed(() => cleaningDisplay.value?.roomName || '')
 
 // 空气指标（无数据显示“未知”）
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
@@ -115,24 +113,27 @@ const metrics = computed(() => {
             <div class="flex-1 flex flex-col justify-center mt-2">
               <div class="text-[clamp(1.75rem,2.5vw,2.25rem)] font-medium tracking-tight mb-2 leading-none">{{ cleaningTime }}</div>
               <div class="text-lg text-white/50">{{ cleaningDate }}</div>
+              <div v-if="cleaningRoom" class="text-base text-white/40 mt-1 truncate">{{ cleaningRoom }}</div>
             </div>
           </BaseCard>
 
           <BaseCard title="附近卫生间" class="h-[65%] border-none min-h-0 flex flex-col">
             <div class="flex-1 flex flex-col gap-6 justify-center mt-2">
               <div v-for="toilet in nearbyList" :key="toilet.label" class="flex items-center justify-start">
-                <span class="text-[clamp(1rem,1.5vw,1.25rem)] text-white/80 font-medium whitespace-nowrap mr-2 xl:mr-4">{{ toilet.label }}-空闲{{ toilet.free }}</span>
+                <span class="text-[clamp(1rem,1.5vw,1.25rem)] text-white/80 font-medium whitespace-nowrap mr-2 xl:mr-4">
+                  {{ toilet.label }}
+                </span>
                 <div class="flex gap-1.5 xl:gap-2 items-center flex-wrap">
                   <div
                     v-for="(status, idx) in toilet.statuses"
                     :key="idx"
                     class="w-[clamp(0.625rem,0.9vw,0.875rem)] h-[clamp(0.625rem,0.9vw,0.875rem)] rounded-full shrink-0"
-                    :class="stallColor(status)"
+                    :class="stallColor(status, toilet.isWomen)"
                   ></div>
                   <div
                     v-if="toilet.vip !== null"
                     class="w-[clamp(0.625rem,0.9vw,0.875rem)] h-[clamp(0.625rem,0.9vw,0.875rem)] rounded-full shrink-0"
-                    :class="stallColor(toilet.vip)"
+                    :class="stallColor(toilet.vip, toilet.isWomen)"
                   ></div>
                 </div>
               </div>
@@ -141,32 +142,43 @@ const metrics = computed(() => {
         </div>
 
         <div class="col-span-9 h-full min-h-0">
-          <BaseCard title="当前楼层" class="w-full h-full border-none min-h-0 flex flex-col">
+          <BaseCard :title="`当前楼层 ${floorName}`" class="w-full h-full border-none min-h-0 flex flex-col">
             <div class="absolute inset-0 opacity-30">
               <div class="absolute top-1/2 left-0 w-full h-64 -translate-y-1/2 bg-gradient-to-r from-transparent via-blue-500/20 to-transparent blur-3xl transform rotate-12"></div>
               <div class="absolute top-1/2 left-0 w-full h-64 -translate-y-1/2 bg-gradient-to-r from-transparent via-cyan-500/10 to-transparent blur-3xl transform -rotate-6"></div>
             </div>
-            <h1 class="text-4xl font-medium mb-12 z-10 tracking-widest">{{ title }}</h1>
+            <h1 class="text-4xl font-medium mb-8 z-10 tracking-widest">{{ title }}</h1>
 
-            <!-- 厕位状态：6 个以内一行，超过分两行且列对齐 -->
-            <div class="w-full max-w-4xl px-8 z-10 flex flex-col gap-12">
+            <!-- 厕位状态：每个绑定卫生间一块（名称+性别+厕位），粉色=女卫 / 绿红=男卫；
+                 单间 6 个以内一行，超过分两行且列对齐 -->
+            <div class="w-full max-w-4xl px-8 z-10 flex-1 min-h-0 flex flex-col justify-center gap-6 overflow-hidden">
               <div
-                v-for="(row, ri) in stallRows"
-                :key="ri"
-                class="grid w-full justify-center"
-                :style="{ gridTemplateColumns: `repeat(${row.cols}, minmax(0, 1fr))`, columnGap: '2rem' }"
+                v-for="toilet in toiletRows"
+                :key="toilet.code"
+                class="flex flex-col items-center gap-3 shrink-0"
               >
-                <div
-                  v-for="(status, idx) in row.stalls"
-                  :key="idx"
-                  class="flex items-center justify-center"
-                  :style="row.offset > 0 && idx === 0 ? { gridColumn: row.offset + 1 } : undefined"
-                >
+            
+                <div v-if="toilet.rows.length > 0" class="flex flex-col gap-4">
                   <div
-                    class="w-[clamp(3rem,7vw,4.5rem)] h-[clamp(3rem,7vw,4.5rem)] rounded-full shadow-lg transition-all duration-500 hover:scale-105 shrink-0"
-                    :class="stallColor(status)"
-                  ></div>
+                    v-for="(row, ri) in toilet.rows"
+                    :key="ri"
+                    class="grid w-full justify-center"
+                    :style="{ gridTemplateColumns: `repeat(${row.cols}, minmax(0, 1fr))`, columnGap: '2rem' }"
+                  >
+                    <div
+                      v-for="(status, idx) in row.stalls"
+                      :key="idx"
+                      class="flex items-center justify-center"
+                      :style="row.offset > 0 && idx === 0 ? { gridColumn: row.offset + 1 } : undefined"
+                    >
+                      <div
+                        class="w-[clamp(2.75rem,6vw,4rem)] h-[clamp(2.75rem,6vw,4rem)] rounded-full shadow-lg transition-all duration-500 hover:scale-105 shrink-0"
+                        :class="stallColor(status, toilet.isWomen)"
+                      ></div>
+                    </div>
+                  </div>
                 </div>
+                <p v-else class="text-white/30 text-sm">暂无厕位数据</p>
               </div>
             </div>
           </BaseCard>

@@ -103,7 +103,8 @@ const form = reactive({
   meetingRoomIndex: null as number | null,
   roomIndex: null as number | null,
   areaIndex: null as number | null,
-  toiletIndex: null as number | null,
+  // 卫生间支持多选：同一楼层男卫+女卫可绑定到同一块屏（多行展示）
+  toiletIndices: [] as number[],
   pubareaIndex: null as number | null,
   companyName: '',
 })
@@ -117,13 +118,14 @@ const canSave = computed(() => {
   if (!form.type) return false
   const floor = currentFloor.value
   if (!floor) return false
-  const listKey = form.type === 'meetingRoom' ? 'mettingRoom' : form.type
+  // 卫生间数据在 floor.toilet（与 handleSubmit 的 roomKey 映射、模板 currentFloor.toilet 一致）
+  const listKey = form.type === 'meetingRoom' ? 'mettingRoom' : form.type === 'tolite' ? 'toilet' : form.type
   const list = (floor as any)[listKey]
   if (!Array.isArray(list) || list.length === 0) return false
   const idx = form.type === 'meetingRoom' ? form.meetingRoomIndex
     : form.type === 'room' ? form.roomIndex
     : form.type === 'area' ? form.areaIndex
-    : form.type === 'tolite' ? form.toiletIndex
+    : form.type === 'tolite' ? (form.toiletIndices.length > 0 ? form.toiletIndices[0] : null)
     : form.type === 'pubarea' ? form.pubareaIndex
     : null
   return idx !== null
@@ -200,12 +202,29 @@ const handleSubmit = () => {
         const roomIndex = form.type === 'meetingRoom' ? form.meetingRoomIndex
           : form.type === 'room' ? form.roomIndex
           : form.type === 'area' ? form.areaIndex
-          : form.type === 'tolite' ? form.toiletIndex
+          : form.type === 'tolite' ? (form.toiletIndices.length > 0 ? form.toiletIndices[0] : null)
           : form.type === 'pubarea' ? form.pubareaIndex
           : null
 
         const roomList = (floor as any)[roomKey]
-        if (roomIndex !== null && roomList?.[roomIndex]) {
+        if (form.type === 'tolite' && Array.isArray(roomList)) {
+          // 多卫生间绑定：roomCodes/roomNames/roomTypes 数组写入 initData，
+          // roomCode/roomName/roomType 保留第一间用于向后兼容（spaceContext/MQTT clientId）
+          const selected = form.toiletIndices
+            .map((i) => roomList[i])
+            .filter((r: any) => r && r.code !== undefined)
+          if (selected.length > 0) {
+            const primary = selected[0]
+            config.roomId = primary.id
+            config.roomName = primary.name
+            config.roomCode = primary.code
+            // 卫生间性别类型 man/woman（结构数据），tolitePad 按它显示男女配色
+            if (primary.type) config.roomType = primary.type
+            config.roomCodes = selected.map((r: any) => r.code)
+            config.roomNames = selected.map((r: any) => r.name)
+            config.roomTypes = selected.map((r: any) => r.type || '')
+          }
+        } else if (roomIndex !== null && roomList?.[roomIndex]) {
           const room = roomList[roomIndex]
           config.roomId = room.id
           config.roomName = room.name
@@ -379,12 +398,13 @@ const handleConfirmTemplate = () => {
           </el-select>
         </el-form-item>
 
-        <!-- Toilet -->
+        <!-- Toilet（多选：同一楼层男卫+女卫可绑到一块屏） -->
         <el-form-item label="绑定卫生间" v-if="currentFloor && form.type === 'tolite'">
-          <el-select v-if="currentFloor.toilet?.length" v-model="form.toiletIndex" placeholder="选择卫生间" class="w-full">
+          <el-select v-if="currentFloor.toilet?.length" v-model="form.toiletIndices" multiple placeholder="选择卫生间（可多选）" class="w-full">
             <el-option :label="t.name" :value="i" v-for="(t, i) in currentFloor.toilet" :key="i" />
           </el-select>
           <p v-else class="text-red-400 text-sm">该楼层结构数据没有卫生间（toilet 列表为空），无法绑定，请检查空间数据</p>
+          <p v-if="currentFloor.toilet?.length" class="text-white/40 text-xs mt-1">可多选：男卫 + 女卫绑定到同一块屏，厕位分多行展示（粉色=女卫）</p>
         </el-form-item>
 
         <!-- Pubarea -->
