@@ -135,6 +135,9 @@ export function usePadHeartbeat(kind: PadHeartbeatKind) {
           status: { online: 1, status: 'busy' },
         }
         setPadName(p.name)
+      } else if (!Array.isArray(raw?.pad) || raw.pad.length === 0) {
+        // 配置响应里没有 pad 身份：心跳无法寻址（常见于重新配置后后端尚未生成 pad 设备）
+        console.warn('[PadHeartbeat] config response has no pad[0] identity — heartbeat cannot publish:', configTopic, raw)
       }
     }))
 
@@ -160,11 +163,14 @@ export function usePadHeartbeat(kind: PadHeartbeatKind) {
       }))
     }
 
-    // 4) 心跳循环：身份未就绪时改为请求配置
+    // 4) 心跳循环：每个周期都重新请求设备配置，以便重新配置（pad 名/房间变更）后
+    //    及时更新 pad 身份与心跳主题；身份未就绪本周期只请求配置、不发心跳
     requestConfig()
     timer = setInterval(() => {
       if (!ctx.value || !isCompleteSpaceContext(ctx.value)) return
-      if (!padObj.value) { requestConfig(); return }
+      // 持续拉配置：一旦后端重配置了 pad 名称，config 响应会更新 padObj → 心跳主题随之切换
+      requestConfig()
+      if (!padObj.value) return
       const pad = padObj.value
       if (kind === 'meetingControl') {
         pad.status.padStatus = computePadStatus()

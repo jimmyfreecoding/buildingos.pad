@@ -102,3 +102,15 @@ meetingPad 的 `subscribe()` 把每个 callback 都挂在 MQTT 客户端全局 `
 | meetingPad | `usePadHeartbeat('meetingControl')`：订阅会议列表 + 人体传感器，计算 padStatus |
 | 其他 pad 类型 | 各自以自身类型名为 kind（`'wallPad'`/`'tolitePad'`/`'roomControl'`/`'doorPad'`/`'twins'`/`'switchPad'`）：无 padStatus，恒为 `{online:1, status:"busy"}` |
 | padStatus bug | 已修复（数字比较） |
+
+## 8. 扩展：会议室类 switchPad 的 padStatus 与云端下发刷新
+
+- **会议室门牌（模板类型 `DoorPad` + 绑定 `type === 'meetingRoom'`）**：心跳需带 `padStatus`（与 meetingPad 相同），否则云端会议巡检无状态数据。`TemplateLoader.vue` 的 `HEARTBEAT_KINDS` 解析时，仅当 `padType === 'doorPad'` 且 `initData.type === 'meetingRoom'` 时按 `'meetingControl'` kind 处理（订阅会议列表 + 人体传感器，计算 padStatus）。**其余 pad 类型（含 switchPad、tolitePad、wallPad 等）一律普通心跳 `{online:1, status:"busy"}`，不计算 padStatus。**
+- **云端下发 pad 指令（原项目 `/iot/action/pad/{space}/#`）**：所有 pad 类型统一在 `TemplateLoader.vue` 通过 `usePadCommand()` 订阅并响应：
+  - `action === "refresh"` → `location.reload()`（整页刷新，重新拉取配置/心跳/订阅）；
+  - 寻址：按 `{space}/{floorArea}/{floor}/{device}[/{padName}]` 段匹配本 pad（楼层级/区域级/指定pad），pad 名来自设备配置 `pad[0].name`（`getPadName()`），配置未到达时回退区域级匹配。
+  - 老项目保留的 `play`/`stop`/`fullscreen` 视为媒体动作，此处仅打日志不触发（可在各自模板自行实现）。
+
+## 9. 其他说明
+
+- 心跳 tick 每个周期都重新请求设备配置（`/iot/setting/get/device`），以便后端重新配置 pad 名称后，`padObj` 与心跳主题随之切换；配置响应若无 `pad[0]` 身份，会 `console.warn` 提示，便于现场排查。

@@ -114,6 +114,9 @@ export const topics = {
   // --- Pad (device discovery / management) ---
   padAction: (c: SpaceContext) =>
     `${IOT_ACTION}/pad/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${c.deviceCode}`,
+  // 云端对 pad 下发指令（原项目 /iot/action/pad/{space}/#，支持 楼层/区域/指定pad 三级寻址，见老项目 AppOld.vue）
+  padActionWildcard: (c: SpaceContext) =>
+    `${IOT_ACTION}/pad/${c.spaceCode}/#`,
 
   // --- Pad heartbeat (pad 自报在线状态，见 devDocs/pad心跳-调研文档.md) ---
   padHeartbeat: (c: SpaceContext, padName: string) =>

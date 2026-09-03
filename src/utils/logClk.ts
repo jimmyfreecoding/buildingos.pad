@@ -18,6 +18,10 @@ let cachedPadName = ''
 export function setPadName(name: string): void {
   cachedPadName = name
 }
+// 供 pad 指令寻址（usePadCommand 判断是否为指定本 pad）读取当前 pad 名
+export function getPadName(): string {
+  return cachedPadName
+}
 
 function readInitData(): Record<string, any> {
   try {
@@ -29,7 +33,8 @@ function readInitData(): Record<string, any> {
 }
 
 // sourceName 拼接规则：/spaceName/floorAreaName/floorName/areaName/padName/deviceType/群控|单控
-// 名称缺失时回退对应 code，保证各段非空
+// 名称缺失时回退对应 code；padName 尚未从设备配置到达时回退 roomName/roomCode，
+// 避免 sourceName 出现空段被云端校验拒绝（否则 switchPad 等 pad 的控制日志会整体丢失）
 function buildSourceName(deviceType: string, ctrl: LogCtrl): string {
   const d = readInitData()
   const segs = [
@@ -37,7 +42,7 @@ function buildSourceName(deviceType: string, ctrl: LogCtrl): string {
     d.floorAreaName || d.floorAreaCode || '',
     d.floorName || d.floorCode || '',
     d.roomName || d.roomCode || '',
-    cachedPadName || '',
+    cachedPadName || d.roomName || d.roomCode || '',
     deviceType,
     ctrl,
   ]
