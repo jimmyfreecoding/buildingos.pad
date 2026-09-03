@@ -13,14 +13,22 @@ export interface LogClkParams {
   areaCode: string
 }
 
-// pad 名称来自设备配置（pad[0].name，见 usePadHeartbeat），早于配置到达的打点该段留空
+// pad 名称/编码来自设备配置（pad[0].name/code，见 usePadHeartbeat），早于配置到达的为空
 let cachedPadName = ''
+let cachedPadCode = ''
 export function setPadName(name: string): void {
   cachedPadName = name
 }
 // 供 pad 指令寻址（usePadCommand 判断是否为指定本 pad）读取当前 pad 名
 export function getPadName(): string {
   return cachedPadName
+}
+// 本 pad 设备编码（pad[0].code，如 WALLPAD-...），用于拉取本 pad 的 display_json（/api/pad/display）
+export function setPadCode(code: string): void {
+  cachedPadCode = code
+}
+export function getPadCode(): string {
+  return cachedPadCode
 }
 
 function readInitData(): Record<string, any> {

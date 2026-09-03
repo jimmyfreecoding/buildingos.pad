@@ -2,6 +2,8 @@ import { reactive } from 'vue'
 import { getSpaceFiles, type SpaceFile } from '@/api/spaceFile'
 import { getServerConfig } from '@/config/servers'
 import type { SpaceContext } from '@/utils/mqttTopics'
+import { getPadCode } from '@/utils/logClk'
+import { getPadDisplay } from '@/api/pad'
 
 // 2.5D 地图单例服务：懒加载 + 模板生命周期内单实例常驻（详见计划：wallPad 2.5D 地图重新实现）
 // 兜底链：edge type=map(.acmap) → type=mapimage(图片) → 静态兜底（MapCanvas slot）
@@ -28,6 +30,29 @@ let _loadPromise: Promise<void> | null = null
 let _watchdog: number | null = null
 let _filesCache: { key: string; files: SpaceFile[] } | null = null
 let _contextKey: string | null = null
+let _displayCache: { key: string; assigned: boolean | undefined } | null = null
+
+// 判断本 pad 是否已分配地图素材（map/mapImage）。走边端 /api/pad/display 的 display_json：
+//  - true：分配了（map 或 mapImage）→ 按现状加载地图/图
+//  - false：明确未分配（display_json 为空/无 map/mapImage）→ 走默认图（fallback）
+//  - undefined：取不到（缺 pad code / 请求失败）→ 不拦截，维持原行为，避免误伤
+async function resolveMapAssigned(ctx: SpaceContext): Promise<boolean | undefined> {
+  const key = contextKey(ctx)
+  if (_displayCache && _displayCache.key === key) return _displayCache.assigned
+  const padCode = getPadCode()
+  if (!padCode) return undefined
+  try {
+    const res: any = await getPadDisplay(ctx.spaceCode, padCode)
+    const d = res?.data || res
+    const dj: any = d?.displayJson
+    const has = !!(dj && (dj.map || dj.mapImage))
+    _displayCache = { key, assigned: has }
+    return has
+  } catch (e) {
+    console.warn('[mapViewer] resolveMapAssigned failed:', e)
+    return undefined
+  }
+}
 
 function readBoundSpace(): Record<string, any> {
   try {
@@ -165,6 +190,15 @@ export async function ensureMap(container: HTMLElement): Promise<void> {
         return
       }
 
+      // 地图区按本 pad 的 display_json 决定显示：配了 map/mapImage 才加载空间地图/图，
+      // 未配置（云端/边端 content_config 已清）走默认图兜底，不再扫描素材库里残留的 .acmap
+      const assigned = await resolveMapAssigned(ctx)
+      if (assigned === false) {
+        mapState.status = 'fallback'
+        mapState.imageUrl = null
+        return
+      }
+
       await ensureSdk()
 
       const files = await fetchFiles(ctx)
@@ -281,4 +315,5 @@ export function destroyMap() {
   mapState.status = 'idle'
   mapState.imageUrl = null
   _contextKey = null
+  _displayCache = null
 }

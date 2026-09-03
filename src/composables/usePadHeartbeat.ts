@@ -4,7 +4,7 @@ import { useSpaceStore } from '@/stores/space'
 import { useMqtt } from '@/utils/useMqtt'
 import { topics } from '@/utils/mqtt'
 import { isCompleteSpaceContext } from '@/utils/mqttTopics'
-import { setPadName } from '@/utils/logClk'
+import { setPadName, setPadCode } from '@/utils/logClk'
 
 export type PadHeartbeatKind =
   | 'wallPad'
@@ -135,6 +135,8 @@ export function usePadHeartbeat(kind: PadHeartbeatKind) {
           status: { online: 1, status: 'busy' },
         }
         setPadName(p.name)
+        if (p.code) setPadCode(p.code)
+        if (p.code) setPadCode(p.code)
       } else if (!Array.isArray(raw?.pad) || raw.pad.length === 0) {
         // 配置响应里没有 pad 身份：心跳无法寻址（常见于重新配置后后端尚未生成 pad 设备）
         console.warn('[PadHeartbeat] config response has no pad[0] identity — heartbeat cannot publish:', configTopic, raw)
