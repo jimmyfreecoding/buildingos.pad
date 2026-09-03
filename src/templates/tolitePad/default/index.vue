@@ -35,7 +35,8 @@ onUnmounted(() => { if (logoTapTimer) clearTimeout(logoTapTimer) })
 // 厕位 dot：粉色=女卫（占用深粉/空闲浅粉），绿/红=男卫；null 未知(灰)
 const stallColor = (status: number | null, isWomen = false) => {
   if (status === null) return 'bg-white/15'
-  if (isWomen) return status === 1 ? 'bg-[#ec4899]' : 'bg-[#f9a8d4]'
+  // if (isWomen) return status === 1 ? 'bg-[#ec4899]' : 'bg-[#f9a8d4]'
+  if (isWomen) return status === 1 ? 'bg-[#ef4444]' : 'bg-[#4ade80]'
   return status === 1 ? 'bg-[#ef4444]' : 'bg-[#4ade80]'
 }
 
