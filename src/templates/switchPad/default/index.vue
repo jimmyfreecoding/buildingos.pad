@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLightMqtt } from '@/composables/useLightMqtt'
 import { useAcMqtt } from '@/composables/useAcMqtt'
-import { isConnected, subscribe, unsubscribe, onMessage } from '@/utils/mqtt'
+import { isConnected } from '@/utils/mqtt'
 
 const router = useRouter()
 import type { AcMode, FanSpeed } from '@/types/device'
@@ -85,47 +85,6 @@ const bgIndex = ref(0)
 const bgStyle = computed(() => BGS[bgIndex.value])
 const cycleBg = () => { bgIndex.value = (bgIndex.value + 1) % BGS.length }
 
-// --- 外部天气 → 背景视频（与 wallPad zeekr 相同） ---
-const outside = ref<{ today?: string }>({})
-const bgParams = ref<{ type: 'image' | 'video'; urls: { url: string }[] }>({ type: 'image', urls: [{ url: '' }] })
-
-const setInitBg = () => {
-  const today = outside.value.today
-  if (!today) return
-  bgParams.value.type = 'video'
-  let file = 'sun.mp4'
-  if (today === '多云') {
-    file = 'cloud.mp4'
-  } else if (today === '阴' || today.indexOf('雾') !== -1 || today.indexOf('霾') !== -1) {
-    file = 'overcast.mp4'
-  } else if (today === '晴') {
-    file = 'sun.mp4'
-  } else if (today.indexOf('雨') !== -1) {
-    file = 'rain.mp4'
-  } else if (today.indexOf('雪') !== -1) {
-    file = 'snow.mp4'
-  }
-  const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`
-  bgParams.value.urls = [{ url: `${base}video/${file}` }]
-}
-
-const onOutside = (payload: unknown) => {
-  if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-    outside.value = payload as { today?: string }
-    setInitBg()
-  }
-}
-
-let offOutside: (() => void) | null = null
-onMounted(() => {
-  subscribe('/wallpad/outside')
-  offOutside = onMessage('/wallpad/outside', onOutside)
-})
-
-onUnmounted(() => {
-  offOutside?.()
-  unsubscribe('/wallpad/outside')
-})
 
 // --- Confirm dialog ---
 const dialogVisible = ref(false)
@@ -349,9 +308,8 @@ const onSliderUp = (e: PointerEvent) => {
       @pointerdown="onDown"
       @pointerup="onUp"
     >
-      <!-- Background gradient -->
-      <div v-if="bgParams.type === 'image'" class="bg" :style="bgStyle"></div>
-      <video v-else-if="bgParams.urls[0]?.url" :src="bgParams.urls[0].url" class="bg-video" loop autoplay muted preload="auto"></video>
+      <!-- Background（固定背景，不再随天气切换成视频） -->
+      <div class="bg" :style="bgStyle"></div>
       <div class="scrim"></div>
 
       <!-- Header -->
@@ -565,14 +523,6 @@ const onSliderUp = (e: PointerEvent) => {
   position: absolute;
   inset: 0;
   transition: opacity .5s;
-}
-
-.bg-video {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 .scrim {
