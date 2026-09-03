@@ -109,7 +109,7 @@ const metrics = computed(() => {
     <div class="flex-1 min-h-0 grid grid-cols-12 grid-rows-[1fr_auto] gap-6">
       <div class="col-span-12 grid grid-cols-12 gap-6 h-full min-h-0">
         <div class="col-span-3 flex flex-col gap-6 h-full min-h-0">
-          <BaseCard title="最近保洁时间" class="h-[35%] border-none shrink-0 flex flex-col">
+          <BaseCard :title="`${floorName} 最近保洁时间`" class="h-[35%] border-none shrink-0 flex flex-col">
             <div class="flex-1 flex flex-col justify-center mt-2">
               <div class="text-[clamp(1.75rem,2.5vw,2.25rem)] font-medium tracking-tight mb-2 leading-none">{{ cleaningTime }}</div>
               <div class="text-lg text-white/50">{{ cleaningDate }}</div>
@@ -142,13 +142,7 @@ const metrics = computed(() => {
         </div>
 
         <div class="col-span-9 h-full min-h-0">
-          <BaseCard :title="`当前楼层 ${floorName}`" class="w-full h-full border-none min-h-0 flex flex-col">
-            <div class="absolute inset-0 opacity-30">
-              <div class="absolute top-1/2 left-0 w-full h-64 -translate-y-1/2 bg-gradient-to-r from-transparent via-blue-500/20 to-transparent blur-3xl transform rotate-12"></div>
-              <div class="absolute top-1/2 left-0 w-full h-64 -translate-y-1/2 bg-gradient-to-r from-transparent via-cyan-500/10 to-transparent blur-3xl transform -rotate-6"></div>
-            </div>
-            <h1 class="text-4xl font-medium mb-8 z-10 tracking-widest">{{ title }}</h1>
-
+          <BaseCard  class="w-full h-full border-none min-h-0 flex flex-col">
             <!-- 厕位状态：每个绑定卫生间一块（名称+性别+厕位），粉色=女卫 / 绿红=男卫；
                  多间/多行一律左对齐，便于对比 -->
             <div class="w-full max-w-4xl px-8 z-10 flex-1 min-h-0 flex flex-col justify-center items-start gap-7 overflow-hidden">
@@ -158,7 +152,6 @@ const metrics = computed(() => {
                 class="flex flex-col items-start gap-3 shrink-0 w-full"
               >
                 <div class="flex items-center gap-3">
-                  <span class="text-[clamp(1.25rem,1.8vw,1.75rem)] font-medium text-white/90 tracking-wide">{{ toilet.name || '卫生间' }}</span>
                   <span
                     class="px-3 py-0.5 rounded-full text-sm font-medium shrink-0"
                     :class="toilet.isWomen
