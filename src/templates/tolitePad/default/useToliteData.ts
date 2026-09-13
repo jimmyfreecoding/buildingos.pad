@@ -2,6 +2,14 @@ import { computed, onScopeDispose, ref } from 'vue'
 import { useSpaceStore } from '@/stores/space'
 import { useMqtt } from '@/utils/useMqtt'
 import { topics, onConnect } from '@/utils/mqtt'
+import {
+  applyDeviceConfig,
+  applyStatusMessage,
+  applyTotalHint,
+  roomDots,
+  roomVip,
+  type StallState,
+} from './stallSlots'
 
 export interface ToiletAir {
   temperature?: number
@@ -42,6 +50,10 @@ function toNum(v: unknown): number | undefined {
  * - 天气 → 背景视频: /wallpad/outside
  * - 多卫生间绑定: InitPage 多选后 initData.roomCodes 为数组，本页对每间订阅（订阅翻倍），
  *   厕位按房间分多行展示（粉色=女卫 / 绿红=男卫），空气指标取多间有效值平均并去抖
+ * - 厕位序号/点数：一律以「本房间设备配置列出的传感器清单」为准（stallSlots.ts）。
+ *   现场 topic/code/名称末尾的数字常是全楼流水号，直接当序号会让 2 厕位房间显示 4 个点
+ *   （1、2 号点永远灰、3、4 号点才是真厕位），因此不再用末尾数字定序号，也不再用
+ *   max(total, 最大编号) 推点数。
  * - 附近卫生间: 当前楼层未绑定的匹配卫生间（绑定含两性时显示全部）+ 邻层最近一个，按各自 code 订阅 wcinfo 与设备配置，wcsensor 按楼层通配
  * - 设备配置: 先 publish /iot/setting/get/device 后端才下发数据；响应订阅 /iot/setting/device/{...}/{room} 与 /iot/status/wcinfo/{...}/{room} 精确主题
  */
@@ -79,18 +91,13 @@ export function useToliteData() {
     )
   }
 
-  // --- 厕位状态（key: 房间 → { 厕位编号: 0空闲/1占用 }） ---
-  const stallMap = ref<Record<string, Record<string, number>>>({})
-  // --- 厕位总数（聚合消息 {occupied, total} 只取 total，用于确定显示数量） ---
-  const totalMap = ref<Record<string, number>>({})
+  // --- 厕位状态：房间 → { slots: 设备/编号→槽位, statuses: 设备/编号→0/1, total: 本房间厕位数, totalHint }
+  // 槽位与点数计算全部收敛在 stallSlots.ts（序号/点数不再由字符串末尾数字决定，避免翻倍） ---
+  const stallState = ref<StallState>({})
   // --- 卫生间空气（key: 房间） ---
   const airMap = ref<Record<string, ToiletAir>>({})
   // --- 保洁信息 ---
   const cleaningMap = ref<Record<string, CleaningInfo>>({})
-  // --- 附近卫生间厕位（key: 卫生间 code → { 厕位编号: 0/1 }） ---
-  const otherStallMap = ref<Record<string, Record<string, number>>>({})
-  // --- 设备配置返回的厕位传感器列表：房间 → { 设备code → 厕位编号 }，wcsensor 消息按 payload.code 直接对齐 ---
-  const sensorIndexMap = ref<Record<string, Record<string, string>>>({})
   // --- 附近卫生间列表：当前楼层未绑定的匹配卫生间 + 邻层最近的一个 ---
   const nearbyToilets = ref<Array<{ name: string; code: string; floorCode: string; floorLabel: string; gender: 'man' | 'woman' }>>([])
   const neighborUnsubs: Array<() => void> = []
@@ -181,94 +188,7 @@ export function useToliteData() {
   // 主房间名称（兼容旧用法）
   const roomName = computed(() => (rooms.length > 0 ? roomNameOf(rooms[0]) : initRoomName))
 
-  // 从设备配置/wcinfo 响应提取厕位传感器列表，建立 设备code → 厕位编号 映射（编号优先取名称末尾数字）
-  const buildSensorIndex = (room: string, data: Record<string, any>) => {
-    const map = sensorIndexMap.value[room] ?? (sensorIndexMap.value[room] = {})
-    const collect = (arr: unknown) => {
-      if (!Array.isArray(arr)) return
-      let idx = Object.keys(map).length
-      for (const item of arr) {
-        if (!item || typeof item !== 'object') continue
-        const o = item as Record<string, any>
-        const code = o?.code
-        const name = o?.name
-        if (typeof code !== 'string' || !code) continue
-        const label = `${String(name ?? '')}${code}`
-        if (!/厕位|传感器|WC/i.test(label)) continue
-        // 烟雾传感器不算厕位（部分房间 SMOKE 设备被错标 type=wcsensor）
-        if (/烟雾|SMOKE/i.test(label)) continue
-        const key = stallNumOf(name) ?? String(idx + 1)
-        map[code] = key
-        idx++
-      }
-    }
-    for (const k of ['wcsensor', 'wc', 'toilet', 'sensor', 'sensors', 'stalls', 'list', 'devices', 'device']) collect(data[k])
-  }
-
-  // 厕位总数：传感器索引里数字编号去重后的个数（烟雾等杂项已被过滤）
-  const distinctStallCount = (room: string): number => {
-    const map = sensorIndexMap.value[room]
-    if (!map) return 0
-    const keys = new Set<string>()
-    for (const k of Object.values(map)) {
-      if (k !== 'vip' && /^\d+$/.test(k)) keys.add(k)
-    }
-    return keys.size
-  }
-
-  // payload 首项的设备 code（wcsensor 消息按它对齐设备配置里的传感器）
-  const firstItemCode = (payload: unknown): string | null => {
-    const arr = Array.isArray(payload) ? payload : null
-    const item = arr?.[0]
-    if (item && typeof item === 'object') {
-      const c = (item as Record<string, any>)?.code
-      if (typeof c === 'string' && c) return c
-    }
-    return null
-  }
-
-  // 厕位编号：P→vip；纯数字原样；否则取末尾数字（如 "厕位传感器12"→12、"00202607014007F-WC-11"→11）
-  const stallNumOf = (v: unknown): string | null => {
-    const s = String(v ?? '')
-    if (!s) return null
-    if (s === 'P') return 'vip'
-    if (/^\d+$/.test(s)) return s
-    const m = s.match(/(\d+)$/)
-    return m ? m[1] : null
-  }
-
-  // 解析厕位状态 payload：整间数组 [{code,status:{status}}] / 单条 / status 对象映射 {1:0,2:1} 均支持
-  const parseStallItems = (payload: unknown): Array<{ key: string; status: number }> => {
-    const out: Array<{ key: string; status: number }> = []
-    if (Array.isArray(payload)) {
-      for (const item of payload) {
-        if (!item || typeof item !== 'object') continue
-        const o = item as Record<string, any>
-        const s = toStatusNum(o?.status?.status ?? o?.status)
-        if (s === null) continue
-        const code = o?.code ?? o?.id ?? o?.key
-        if (code === undefined) continue
-        const key = stallNumOf(code)
-        if (!key) continue
-        out.push({ key, status: s })
-      }
-      return out
-    }
-    if (payload && typeof payload === 'object') {
-      const st = (payload as Record<string, any>).status
-      if (st && typeof st === 'object' && !Array.isArray(st)) {
-        for (const [k, v] of Object.entries(st)) {
-          const key = stallNumOf(k)
-          if (!key) continue
-          const s = toStatusNum(v)
-          if (s !== null) out.push({ key, status: s })
-        }
-      }
-    }
-    return out
-  }
-
-  // --- 设备配置/wcinfo 响应（后端形状未定，防御式提取厕位总数与状态） ---
+  // --- 设备配置/wcinfo 响应（后端形状未定，防御式提取；槽位/点数解析见 stallSlots.ts） ---
   const unwrapPayload = (payload: unknown): Record<string, any> | null => {
     let v: any = payload
     if (typeof v === 'string') {
@@ -278,79 +198,20 @@ export function useToliteData() {
     return v && typeof v === 'object' && !Array.isArray(v) ? v : null
   }
 
-  const toStatusNum = (v: unknown): number | null => {
-    if (v === 1 || v === true || v === '1' || v === 'on') return 1
-    if (v === 0 || v === false || v === '0' || v === 'off') return 0
-    return null
-  }
-
-  const findTotal = (o: Record<string, any>): number | undefined => {
-    for (const k of ['total', 'stallTotal', 'wcTotal', 'num', 'stallCount', 'wcCount']) {
-      const n = toNum(o?.[k])
-      if (n !== undefined && n > 0) return Math.floor(n)
-    }
-    for (const k of ['wc', 'wcsensor', 'toilet', 'stalls', 'list']) {
-      if (Array.isArray(o?.[k]) && o[k].length > 0) return o[k].length
-    }
-    for (const k of ['status', 'wc', 'wcsensor', 'toilet', 'data']) {
-      const nested = o?.[k]
-      if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
-        const n = findTotal(nested)
-        if (n !== undefined) return n
-      }
-    }
-    return undefined
-  }
-
-  // 房间厕位总数：优先传感器索引的去重编号数（已排除烟雾），其次响应里的显式 total
-  const applyTotal = (room: string, data: Record<string, any>): number | undefined => {
-    const distinct = distinctStallCount(room)
-    const val = distinct > 0 ? distinct : findTotal(data)
-    if (val !== undefined && val > 0) totalMap.value[room] = val
-    return val
-  }
-
-  const applyStallStatuses = (o: Record<string, any>, target: Record<string, number>) => {
-    const seen = new Set(Object.keys(target))
-    const set = (k: string, v: unknown) => {
-      const s = toStatusNum(v)
-      if (s === null) return
-      const key = k === 'P' ? 'vip' : k
-      if (key !== 'vip' && !/^\d+$/.test(key)) return
-      if (seen.has(key)) return
-      seen.add(key)
-      target[key] = s
-    }
-    const st = o?.status && typeof o.status === 'object' && !Array.isArray(o.status) ? o.status : null
-    if (st) for (const [k, v] of Object.entries(st)) set(k, v)
-    for (const k of ['wc', 'wcsensor', 'toilet', 'stalls', 'list']) {
-      const arr = Array.isArray(o?.[k]) ? o[k] : null
-      if (!arr) continue
-      for (const item of arr) {
-        if (!item || typeof item !== 'object') continue
-        const code = item.code ?? item.name ?? item.id ?? item.key
-        if (code === undefined) continue
-        set(String(code), item.status?.status ?? item.status ?? item.occupied)
-      }
-    }
+  // 应用设备配置/wcinfo：先按「本房间传感器清单」定槽位与点数，再吸收响应自带的状态
+  const applyRoomConfig = (room: string, data: Record<string, any>) => {
+    const applied = applyDeviceConfig(stallState.value, room, data)
+    if (applied) console.log(`[tolitePad] 厕位槽位 ${room}: count=${applied.count}`, applied.slots)
   }
 
   const roomFromTopic = (topic: string) => topic.slice(topic.lastIndexOf('/') + 1)
-
-  const stallTarget = (room: string): Record<string, number> => {
-    if (rooms.includes(room)) return stallMap.value[room] ?? (stallMap.value[room] = {})
-    return otherStallMap.value[room] ?? (otherStallMap.value[room] = {})
-  }
 
   const handleWcInfoMessage = (payload: unknown, topic: string) => {
     const room = roomFromTopic(topic)
     if (!rooms.includes(room) && !nearbyToilets.value.some((t) => t.code === room)) return
     const data = unwrapPayload(payload)
     if (!data) return
-    buildSensorIndex(room, data)
-    applyStallStatuses(data, stallTarget(room))
-    const total = applyTotal(room, data)
-    if (total !== undefined) console.log('[tolitePad] wcinfo total:', room, total)
+    applyRoomConfig(room, data)
   }
 
   const handleConfigMessage = (payload: unknown, topic: string) => {
@@ -363,61 +224,26 @@ export function useToliteData() {
     console.log('[tolitePad] device config:', topic, data)
     const name = data.name ?? data.roomName ?? data.toiletName
     if (typeof name === 'string' && name && rooms.includes(room)) configNameMap.value[room] = name
-    buildSensorIndex(room, data)
-    applyStallStatuses(data, stallTarget(room))
-    const total = applyTotal(room, data)
-    if (total !== undefined) console.log('[tolitePad] config total:', room, total)
+    applyRoomConfig(room, data)
   }
 
   // wcsensor 楼层通配消息：/iot/status/wcsensor/{space}/{area}/{floor}/{room}/{stall?}
+  // 每厕位一条 / 整间一条 / {status:{…}} 映射统一由 stallSlots.ts 解析后落到本房间槽位
   const handleWcSensorMessage = (payload: unknown, topic: string) => {
     const segs = topic.split('/')
     const room = segs[7] ?? ''
     const stallSeg = segs[8] ?? ''
     if (!room) return
     // 烟雾传感器消息不算厕位状态（部分房间 SMOKE 设备被错标 type=wcsensor）
-    if (/烟雾/.test(stallSeg)) return
+    if (/烟雾|SMOKE/i.test(stallSeg)) return
 
-    // 聚合计数（{occupied,total}）只定数量，状态以逐厕位消息为准
-    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-      const t = toNum((payload as Record<string, any>)?.total)
-      if (t !== undefined && t > 0) totalMap.value[room] = Math.floor(t)
-    }
+    // 聚合计数（{occupied,total}）只当点数提示，且仅在没有设备配置时生效
+    const hint = applyTotalHint(stallState.value, room, payload)
+    if (hint !== null) console.log('[tolitePad] 厕位总数提示:', room, hint)
 
-    const target = stallTarget(room)
-
-    // 每厕位一条：优先 payload.code 对齐设备配置的传感器编号，其次 topic 末段编号
-    const code = firstItemCode(payload)
-    if (code && /烟雾|SMOKE/i.test(code)) return
-    const stallKey = (code && sensorIndexMap.value[room]?.[code]) || stallNumOf(stallSeg)
-    if (stallKey) {
-      const item = parseStallItems(payload)[0]
-      if (item) {
-        target[stallKey] = item.status
-        return
-      }
-      let raw: unknown = payload
-      if (Array.isArray(raw)) raw = (raw[0] ?? null) as unknown
-      if (raw && typeof raw === 'object') raw = (raw as any)?.status?.status ?? (raw as any)?.status
-      const s = toStatusNum(raw)
-      if (s !== null) target[stallKey] = s
-      return
-    }
-
-    // 整间一条：设备 code 优先经传感器索引映射厕位号，烟雾设备忽略
-    const arr = Array.isArray(payload) ? payload : []
-    for (const item of arr) {
-      if (!item || typeof item !== 'object') continue
-      const o = item as Record<string, any>
-      const s = toStatusNum(o?.status?.status ?? o?.status)
-      if (s === null) continue
-      const rawCode = o?.code ?? o?.id ?? o?.key
-      if (rawCode === undefined) continue
-      const raw = String(rawCode)
-      if (/烟雾|SMOKE/i.test(raw)) continue
-      const key = sensorIndexMap.value[room]?.[raw] ?? stallNumOf(raw)
-      if (!key) continue
-      target[key] = s
+    const { dropped } = applyStatusMessage(stallState.value, room, payload, stallSeg)
+    if (dropped > 0) {
+      console.warn(`[tolitePad] 厕位消息编号超出 ${room} 的厕位数，已忽略以免出现幽灵厕位:`, topic, payload)
     }
   }
 
@@ -585,7 +411,9 @@ export function useToliteData() {
   }
 
   // 原项目协议：挂载后先 publish /iot/setting/get/device，后端才下发设备数据。
-  // 每个房间只在进入页面时请求一次（后端响应过就不再重发）
+  // 每个房间进入页面只请求一次：configRequested 拦截重复 publish（setup 与 applyNeighbors 都会触发），
+  // 否则后端会响应两次，旧实现每次响应都会给传感器重新编号（1、2 → 3、4），点数直接翻倍
+  const configRequested = new Set<string>()
   const configAnswered = new Set<string>()
   const requestConfig = () => {
     if (disposed || !ctx.value) return
@@ -595,7 +423,8 @@ export function useToliteData() {
       ...nearbyToilets.value.map((t) => ({ code: t.code, floorCode: t.floorCode })),
     ]
     for (const t of targets) {
-      if (configAnswered.has(t.code)) continue
+      if (configAnswered.has(t.code) || configRequested.has(t.code)) continue
+      configRequested.add(t.code)
       mqtt.publish(topics.deviceConfigGet(), {
         spaceCode: c.spaceCode,
         floorAreaCode: c.floorAreaCode,
@@ -623,9 +452,13 @@ export function useToliteData() {
       unsubs.push(mqtt.onMessage(wcInfoTopic, (payload, topic) => handleWcInfoMessage(payload, topic)))
     }
 
-    // 未连接时 publish 会被丢弃，重连后重新请求（已响应的房间跳过）
+    // 未连接时 publish 会被丢弃：重连后清掉「已请求」标记，只对「未响应」的房间重发
     requestConfig()
-    unsubs.push(onConnect(() => { if (!disposed) requestConfig() }))
+    unsubs.push(onConnect(() => {
+      if (disposed) return
+      configRequested.clear()
+      requestConfig()
+    }))
 
     // 当前楼层 wcsensor 通配：一次订阅覆盖本层所有卫生间（每厕位一条/整间一条均可路由）
     const wcFloorTopic = topics.wcSensorFloor(c)
@@ -672,26 +505,9 @@ export function useToliteData() {
     neighborUnsubs.length = 0
   })
 
-  // --- 厕位（数量由 total 决定、缺失时按已收到最大编号推断；状态未到显示未知 null，vip 最后） ---
-  const stallsOf = (room: string): Array<number | null> => {
-    const map = stallMap.value[room] ?? {}
-    const nums = Object.keys(map)
-      .filter((k) => k !== 'vip' && /^\d+$/.test(k))
-      .map(Number)
-      .sort((a, b) => a - b)
-    const count = Math.max(
-      totalMap.value[room] ?? 0,
-      nums.length > 0 ? nums[nums.length - 1] : 0,
-    )
-    const list: Array<number | null> = []
-    for (let i = 1; i <= count; i++) {
-      const v = map[String(i)]
-      list.push(v === 0 || v === 1 ? v : null)
-    }
-    const vip = map['vip']
-    if (vip === 0 || vip === 1) list.push(vip)
-    return list
-  }
+  // --- 厕位（点数=本房间设备配置的厕位数；状态未到显示未知 null，vip 最后） ---
+  // 不得再使用 max(total, 最大编号)：现场编号常是全楼流水号，会把 2 厕位房间撑成 4 个点
+  const stallsOf = (room: string): Array<number | null> => roomDots(stallState.value, room)
 
   // --- 单间厕位布局：6 个以内一行；超过分两行，列对齐 ---
   const stallRowsOf = (room: string): ToiletRowBlock[] => {
@@ -720,25 +536,12 @@ export function useToliteData() {
     })),
   )
 
-  // --- 附近卫生间展示（状态未到显示灰色未知 null，vip 计入空闲数） ---
+  // --- 附近卫生间展示（状态未到显示灰色未知 null，vip 单独一点并计入空闲数） ---
   const nearbyList = computed(() =>
     nearbyToilets.value.map((t) => {
-      const map = otherStallMap.value[t.code] ?? {}
-      const nums = Object.keys(map)
-        .filter((k) => k !== 'vip' && /^\d+$/.test(k))
-        .map(Number)
-        .sort((a, b) => a - b)
-      const count = Math.max(
-        totalMap.value[t.code] ?? 0,
-        nums.length > 0 ? nums[nums.length - 1] : 0,
-      )
-      const statuses: Array<number | null> = []
-      for (let i = 1; i <= count; i++) {
-        const v = map[String(i)]
-        statuses.push(v === 0 || v === 1 ? v : null)
-      }
-      const vip = map['vip']
-      const vipStatus = vip === 0 || vip === 1 ? vip : null
+      const dots = roomDots(stallState.value, t.code)
+      const vipStatus = roomVip(stallState.value, t.code)
+      const statuses: Array<number | null> = vipStatus === null ? dots : dots.slice(0, -1)
       const free = statuses.filter((v) => v === 0).length + (vipStatus === 0 ? 1 : 0)
       const label = t.floorLabel && !t.name.includes(t.floorLabel) ? `${t.floorLabel}-${t.name}` : t.name
       return { label, free, statuses, vip: vipStatus, isWomen: t.gender === 'woman' }
