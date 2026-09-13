@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { ensureMap, attachMap, detachMap, mapState } from '@/services/mapViewer'
+import { ensureMap, attachMap, detachMap, reportImageError, mapState } from '@/services/mapViewer'
 
 // 2.5D 地图挂载包装：IntersectionObserver 感知可见性，
 // 可见时 ensure+attach（单例复用），不可见时 detach（no-op，实例常驻）
@@ -52,11 +52,12 @@ onBeforeUnmount(() => {
     <div v-if="mapState.status === 'loading'" class="absolute inset-0 z-10 flex items-center justify-center">
       <div class="w-10 h-10 border-2 border-white/20 border-t-white/80 rounded-full animate-spin"></div>
     </div>
-    <!-- image -->
+    <!-- image：云端上传的地图图片；加载失败（404/CORS）→ 回退默认图，不留白屏 -->
     <img
       v-else-if="mapState.status === 'image' && mapState.imageUrl"
       :src="mapState.imageUrl"
       class="absolute inset-0 z-10 w-full h-full object-contain"
+      @error="reportImageError"
     />
     <!-- fallback：静态兜底（zeekr floor.jpg / default CSS 伪地图） -->
     <div v-else-if="mapState.status === 'fallback'" class="absolute inset-0 z-10">
