@@ -16,12 +16,14 @@ const getInitConfig = () => {
 const initData = getInitConfig()
 const is16_10 = initData?.ratio === '16:10'
 const is1_1 = initData?.ratio === '1:1'
+// 会议室门牌为竖屏 800x1280（老项目 buildingos_meetingpad 设计稿尺寸）
+const is5_8 = initData?.ratio === '5:8'
 
 export const AppConfig = {
   // Base Design Resolution
   design: {
-    width: is1_1 ? 640 : 1920,
-    height: is1_1 ? 640 : (is16_10 ? 1200 : 1080),
+    width: is5_8 ? 800 : (is1_1 ? 640 : 1920),
+    height: is5_8 ? 1280 : (is1_1 ? 640 : (is16_10 ? 1200 : 1080)),
   },
 
   // App Title

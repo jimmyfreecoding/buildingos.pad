@@ -55,6 +55,7 @@ const padTypes = [
   { label: 'Room Control (独立房间中控)', value: 'roomControl' },
   { label: 'Meeting Control (会议室中控)', value: 'meetingControl' },
   { label: 'Door Pad (独立房间门屏)', value: 'doorPad' },
+  { label: 'Meeting Pad (会议室门牌)', value: 'meetingPad' },
   { label: 'Digital Twin Screen (数字孪生大屏)', value: 'twins' },
   { label: 'Switch Pad (开关屏)', value: 'switchPad' },
 ]
@@ -64,6 +65,7 @@ const ratios = [
   { label: '16:10 (1920x1200)', value: '16:10' },
   { label: '16:9 (4K - 3840x2160)', value: '4k' },
   { label: '1:1 (640x640)', value: '1:1' },
+  { label: '5:8 (800x1280 竖屏会议室门牌)', value: '5:8' },
 ]
 
 const typeOptions = computed(() => {
@@ -80,7 +82,9 @@ const typeOptions = computed(() => {
       { label: '会议室', value: 'meetingRoom' },
       { label: '公共区域', value: 'pubarea' },
     ]
-    case 'meetingControl': return [{ label: '会议室', value: 'meetingRoom' }]
+    case 'meetingControl':
+    // 会议室门牌只针对会议室（竖屏 800x1280）
+    case 'meetingPad': return [{ label: '会议室', value: 'meetingRoom' }]
     default: return [
       { label: '会议室', value: 'meetingRoom' },
       { label: '独立房间', value: 'room' },
@@ -246,14 +250,24 @@ const handleSubmit = () => {
 }
 
 // --- Step 3: Template selection ---
-const selectedTemplate = ref('default')
+const selectedTemplate = ref('')
 const templateList = computed(() => getTemplates(padType.value))
+
+// 该 padType 下可能有多个主题模板（如会议室门牌蓝/橙），且模板 id 未必叫 default，
+// 因此「未选择 / 选了已不存在的 id」时统一回退到第一个可用模板，避免写出无效 template。
+const effectiveTemplate = computed(() => {
+  const list = templateList.value
+  if (selectedTemplate.value && list.some((t) => t.id === selectedTemplate.value)) {
+    return selectedTemplate.value
+  }
+  return list[0]?.id || ''
+})
 
 const handleConfirmTemplate = () => {
   try {
     const raw = localStorage.getItem('initData')
     const data = raw ? JSON.parse(raw) : {}
-    data.template = selectedTemplate.value
+    data.template = effectiveTemplate.value
     localStorage.setItem('initData', JSON.stringify(data))
   } catch { /* ignore */ }
   // 空间绑定影响 spaceContext/MQTT 主题与订阅（spaceStore 的 computed 会缓存旧 initData，
@@ -439,16 +453,16 @@ const handleConfirmTemplate = () => {
           v-for="tpl in templateList"
           :key="tpl.id"
           class="bg-[#2a2a2a] rounded-xl p-5 cursor-pointer border-2 transition-all hover:border-white/30"
-          :class="selectedTemplate === tpl.id ? 'border-blue-500' : 'border-transparent'"
+          :class="effectiveTemplate === tpl.id ? 'border-blue-500' : 'border-transparent'"
           @click="selectedTemplate = tpl.id"
         >
           <div class="flex items-center justify-between mb-2">
             <span class="text-lg font-medium">{{ tpl.manifest.name }}</span>
             <div
               class="w-5 h-5 rounded-full border-2 flex items-center justify-center"
-              :class="selectedTemplate === tpl.id ? 'border-blue-500 bg-blue-500' : 'border-white/20'"
+              :class="effectiveTemplate === tpl.id ? 'border-blue-500 bg-blue-500' : 'border-white/20'"
             >
-              <div v-if="selectedTemplate === tpl.id" class="w-2 h-2 rounded-full bg-white"></div>
+              <div v-if="effectiveTemplate === tpl.id" class="w-2 h-2 rounded-full bg-white"></div>
             </div>
           </div>
           <p class="text-sm text-gray-400">{{ tpl.manifest.description || '暂无描述' }}</p>

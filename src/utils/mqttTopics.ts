@@ -126,6 +126,14 @@ export const topics = {
   meetingMroom: (c: SpaceContext) =>
     `/iot/meeting/mroom/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${c.deviceCode}`,
 
+  // --- Meeting room busy status (最近 10 分钟有无人，原项目 /iot/mroom/busystatus/...) ---
+  meetingBusyStatus: (c: SpaceContext) =>
+    `/iot/mroom/busystatus/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${c.deviceCode}`,
+
+  // --- Meeting room last busy time (最近占用时间，原项目 /iot/mroom/lastbusytime/...) ---
+  meetingLastBusyTime: (c: SpaceContext) =>
+    `/iot/mroom/lastbusytime/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${c.deviceCode}`,
+
   // --- Human presence sensor per room (会议室房间级) ---
   humanSensorRoom: (c: SpaceContext) =>
     `${IOT_STATUS}/humensensor/${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${c.deviceCode}/#`,

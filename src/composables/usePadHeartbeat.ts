@@ -11,6 +11,7 @@ export type PadHeartbeatKind =
   | 'tolitePad'
   | 'roomControl'
   | 'meetingControl'
+  | 'meetingPad'
   | 'doorPad'
   | 'twins'
   | 'switchPad'
@@ -48,6 +49,10 @@ export function usePadHeartbeat(kind: PadHeartbeatKind) {
   const key = computed(() => ctx.value ? deviceStore.makeKey(ctx.value, 'pad') : '')
 
   const padObj = ref<PadIdentity | null>(null)
+
+  // 会议室中控 / 会议室门牌：都需要「会议列表 + 人体传感器」计算 padStatus
+  // padStatus 语义：0 无会无人 1 有会有人 2 无会有人 3 有会无人
+  const isMeetingMode = kind === 'meetingControl' || kind === 'meetingPad'
 
   let unsubs: Array<() => void> = []
   let timer: ReturnType<typeof setInterval> | null = null
@@ -143,7 +148,7 @@ export function usePadHeartbeat(kind: PadHeartbeatKind) {
       }
     }))
 
-    if (kind === 'meetingControl') {
+    if (isMeetingMode) {
       // 2) 会议列表（后端推送）
       const meetingTopic = topics.meetingMroom(c)
       mqtt.subscribe(meetingTopic)
@@ -174,7 +179,7 @@ export function usePadHeartbeat(kind: PadHeartbeatKind) {
       requestConfig()
       if (!padObj.value) return
       const pad = padObj.value
-      if (kind === 'meetingControl') {
+      if (isMeetingMode) {
         pad.status.padStatus = computePadStatus()
       }
       mqtt.publish(topics.padHeartbeat(ctx.value, pad.name), [pad])

@@ -1,0 +1,7 @@
+{
+  "name": "Zeekr 会议室门牌（蓝）",
+  "description": "会议室门牌竖屏界面（800x1280）· 蓝色主题：蓝色装饰条 / 蓝色会议状态与进度条，兜底背景为 buildingos_meetingpad 楼宇图",
+  "version": "1.0.0",
+  "author": "BuildingOS",
+  "padType": "meetingPad"
+}

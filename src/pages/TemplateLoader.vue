@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
-import { getTemplate } from '@/templates/registry'
+import { getTemplate, getTemplates } from '@/templates/registry'
 import { usePadHeartbeat, type PadHeartbeatKind } from '@/composables/usePadHeartbeat'
 import { usePadCommand } from '@/composables/usePadCommand'
 
@@ -26,6 +26,8 @@ const HEARTBEAT_KINDS: Record<string, PadHeartbeatKind> = {
   twins: 'twins',
   switchPad: 'switchPad',
   meetingControl: 'meetingControl',
+  // 会议室门牌：走会议逻辑（会议列表 + 人体传感器 → padStatus）
+  meetingPad: 'meetingPad',
 }
 const heartbeatKind = computed<PadHeartbeatKind | null>(() => {
   const base = HEARTBEAT_KINDS[padType.value] ?? null
@@ -52,7 +54,9 @@ const templateId = computed(() => {
 })
 
 const component = computed(() => {
-  const info = getTemplate(padType.value, templateId.value)
+  // initData.template 可能过期或为空（例如模板改名 default → blue/orange），
+  // 取不到时回退到该 padType 的第一个模板，避免整屏 "Template not found"
+  const info = getTemplate(padType.value, templateId.value) ?? getTemplates(padType.value)[0]
   if (!info) return null
   return defineAsyncComponent(info.component)
 })

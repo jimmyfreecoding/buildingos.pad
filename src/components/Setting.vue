@@ -40,6 +40,8 @@ const typeOptions = computed(() => {
         { label: '公共区域', value: 'pubarea' }
       ]
     case 'meetingControl':
+    // 会议室门牌只针对会议室
+    case 'meetingPad':
       return [{ label: '会议室', value: 'meetingRoom' }]
     default:
       return [
@@ -63,6 +65,7 @@ const padTypeLabels: Record<string, string> = {
   roomControl: 'Room Control (独立房间中控)',
   meetingControl: 'Meeting Control (会议室中控)',
   doorPad: 'Door Pad (独立房间门屏)',
+  meetingPad: 'Meeting Pad (会议室门牌)',
   switchPad: 'Switch Pad (开关屏)'
 }
 
