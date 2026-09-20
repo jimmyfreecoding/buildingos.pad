@@ -54,7 +54,6 @@
         :roomCode="roomCodePath"
         :fallbackSrc="resolvedQrFallback"
         style="position: absolute; bottom: 0; right: 32px; z-index: 10"
-        @click="openDoorDialog = true"
       />
 
       <PadClearTime
@@ -64,9 +63,6 @@
         @checked-in="onCheckedIn"
       />
     </div>
-
-    <!-- 扫码开门：点击二维码 → 输入密码 → 发布开门指令 -->
-    <PadOpenDoorDialog v-model="openDoorDialog" :password="doorPassword" @open-door="openDoor" />
   </VScaleScreen>
 </template>
 
@@ -83,7 +79,6 @@ import PadMeeting from './components/PadMeeting.vue'
 import PadMeetList from './components/PadMeetList.vue'
 import PadErweima from './components/PadErweima.vue'
 import PadClearTime from './components/PadClearTime.vue'
-import PadOpenDoorDialog from './components/PadOpenDoorDialog.vue'
 import { useMeetingPadData } from './useMeetingPadData'
 import { usePadPublishedLogo } from './usePadPublishedLogo'
 
@@ -115,21 +110,18 @@ const router = useRouter()
 const {
   roomName,
   bgImgs,
-  doorPassword,
   roomCodePath,
   obj,
   currentStatus,
   isDown,
   bookList,
   baojie,
-  openDoor,
   onCheckedIn,
 } = useMeetingPadData()
 
 // 左上角 logo：云端发布内容（wallPad 链路）→ geely 兜底
 const { publishedLogoUrl } = usePadPublishedLogo()
 
-const openDoorDialog = ref(false)
 // 兜底二维码（扫码无效）：主题未提供时用内置静态图
 const resolvedQrFallback = props.qrFallbackSrc || new URL('./assets/images/qr-invalid.png', import.meta.url).href
 

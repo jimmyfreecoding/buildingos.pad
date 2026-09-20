@@ -1,5 +1,4 @@
 import { computed, onScopeDispose, ref } from 'vue'
-import { ElMessage } from 'element-plus'
 import { useSpaceStore } from '@/stores/space'
 import { useMqtt } from '@/utils/useMqtt'
 import { topics } from '@/utils/mqtt'
@@ -16,11 +15,12 @@ import { getPadInfoByCode, type PadInfoResponse } from '@/api/meeting'
  * - 最近10分钟有无人 /iot/mroom/busystatus   → topics.meetingBusyStatus(c)
  * - 最近占用时间     /iot/mroom/lastbusytime → topics.meetingLastBusyTime(c)
  * - 设备配置     订阅 topics.deviceConfigResponse(c)，发布 topics.deviceConfigGet()（原 /iot/setting/get/device）
- * - 开门         发布 topics.doorAction(c) { action: 'on' }（原 /iot/action/door/...）
  * - pad 心跳     由 TemplateLoader 的 usePadHeartbeat('meetingPad') 统一处理（标准模式）
  * - 刷新指令     由 TemplateLoader 的 usePadCommand() 统一处理（标准模式）
  *
- * 保留原处理方式：pad 信息仍走 HTTP /pad/getPadInfoByCode（后端暂未提供新端点）——用于背景图与开门密码；
+ * 门牌端不做开门：二维码仅展示（保洁人员用手机扫码打卡），因此不再发布 topics.doorAction。
+ *
+ * 保留原处理方式：pad 信息仍走 HTTP /pad/getPadInfoByCode（后端暂未提供新端点）——用于背景图；
  * 卫生打卡仍走 GET /setCleanTime?spaceCode=&time=（见 @/api/cleaning cleanCheckIn）。
  * 左上角 logo 不在此处：改走 wallPad 的「云端发布内容」链路（usePadPublishedLogo.ts，display_json → geely 兜底）。
  */
@@ -132,9 +132,7 @@ export function useMeetingPadData() {
     return `${baseURL()}/fileManager/download/${file}`
   }
 
-  // 左上角 logo 改走 wallPad 的「云端发布内容」链路（见 usePadPublishedLogo.ts），此处只用 padInfo 的背景图与开门密码
-  const doorPassword = computed(() => padInfo.value?.password || '1205')
-
+  // 左上角 logo 改走 wallPad 的「云端发布内容」链路（见 usePadPublishedLogo.ts），此处只用 padInfo 的背景图
   const bgImgs = computed<string[]>(() => {
     const raw = padInfo.value?.imgs
     if (!raw) return []
@@ -409,29 +407,6 @@ export function useMeetingPadData() {
   })
 
   // ===== 动作 =====
-  const openDoor = () => {
-    const c = ctx.value
-    if (!c || !isCompleteSpaceContext(c)) {
-      // element-plus 2.x 的 MessageProps 未声明 style，沿用原项目内联样式需显式断言
-      ElMessage({
-        message: '开门失败：未找到房间信息',
-        type: 'error',
-        duration: 2000,
-        offset: 450,
-        style: { backgroundColor: 'rgba(0, 0, 0, .2)', borderRadius: '9px', border: 'none', textAlign: 'center', fontSize: '24px', color: '#fff' },
-      } as any)
-      return
-    }
-    mqtt.publish(topics.doorAction(c), { action: 'on' })
-    ElMessage({
-      message: '开门成功',
-      type: 'success',
-      duration: 2000,
-      offset: 450,
-      style: { backgroundColor: 'rgba(0, 0, 0, .2)', borderRadius: '9px', border: 'none', textAlign: 'center', fontSize: '24px', color: '#fff' },
-    } as any)
-  }
-
   const onCheckedIn = (timestamp: number) => {
     if (Number.isFinite(timestamp)) baojie.value.endTime = timestamp
   }
@@ -445,7 +420,6 @@ export function useMeetingPadData() {
     ctx,
     roomName,
     bgImgs,
-    doorPassword,
     roomCodePath,
     obj,
     currentStatus,
@@ -455,7 +429,6 @@ export function useMeetingPadData() {
     next,
     lastTime,
     statusObj,
-    openDoor,
     onCheckedIn,
   }
 }

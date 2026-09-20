@@ -1,7 +1,8 @@
 <template>
   <!-- 二维码 / 保洁打卡（原项目 src/components/erweima.vue）
+       仅展示：保洁人员用自己的手机扫码打卡，门牌端不再有点击行为
        取不到后端二维码 / 图片加载失败 → 兜底为「扫码无效」的二维码（内置静态图），不再出现破图 -->
-  <div class="erweima-wrap" @click="emit('click')">
+  <div class="erweima-wrap">
     <div class="erweima-box">
       <img class="img" :src="displaySrc" alt="qr" @error="onError" />
     </div>
@@ -18,8 +19,6 @@ const props = withDefaults(defineProps<{
   /** 兜底二维码（扫码无效） */
   fallbackSrc?: string
 }>(), { roomCode: '', fallbackSrc: '' })
-
-const emit = defineEmits<{ (e: 'click'): void }>()
 
 // 内置兜底二维码：内容为无效标识，扫码不指向任何有效业务
 const builtinFallback = new URL('../assets/images/qr-invalid.png', import.meta.url).href
@@ -46,7 +45,6 @@ const onError = () => { failed.value = true }
   text-align: center;
   width: 190px;
   z-index: 2000;
-  cursor: pointer;
   user-select: none;
 }
 .erweima-box {
