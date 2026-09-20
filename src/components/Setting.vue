@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, watch, computed, reactive } from 'vue'
-import { Delete, MapPin } from 'lucide-vue-next'
+import { Delete } from 'lucide-vue-next'
 import { ElMessage } from 'element-plus'
 import { getSpaceData } from '@/api/space';
 import { useRouter } from 'vue-router'
+import AdminActions from '@/components/AdminActions.vue'
 const router = useRouter()
 
 const props = defineProps<{
@@ -233,7 +234,7 @@ const saveData = () => {
 
 const handlePinSubmit = () => {
   if (pinCode.value === '1111') {
-    // 验证成功，切换到 Config 界面
+    // 验证成功 → 二级界面（刷新 / 绑定），点「绑定」才进入原先的绑定界面
     showConfigDialog.value = true
     pinCode.value = ''
   } else {
@@ -241,6 +242,19 @@ const handlePinSubmit = () => {
     pinCode.value = ''
   }
 }
+
+// 二级界面「刷新」：整页重载本机界面（重新拉设备配置 / 心跳 / 订阅）
+const handleRefresh = () => {
+  window.location.reload()
+}
+
+// 二级界面提示：当前 pad 类型 + 已绑定空间
+const adminHint = computed(() => {
+  const parts: string[] = []
+  if (hasBinding.value) parts.push(bindingInfo.value)
+  parts.push(hasSpaceBinding.value ? spaceBindingInfo.value : '尚未绑定空间位置')
+  return parts.filter(Boolean).join(' · ')
+})
 
 const closeDialog = () => {
   emit('update:modelValue', false)
@@ -295,7 +309,7 @@ const handleDialogUpdate = (val: boolean) => {
     :fullscreen="showConfigDialog"
     :width="showConfigDialog ? '100%' : '360px'"
     :append-to-body="true"
-    :show-close="showConfigDialog"
+    :show-close="true"
     :modal="true"
     :class="showConfigDialog ? 'config-dialog' : 'pin-dialog'"
     :center="!showConfigDialog"
@@ -344,41 +358,16 @@ const handleDialogUpdate = (val: boolean) => {
       </div>
     </div>
 
-    <!-- Config Content -->
+    <!-- 二级界面：刷新 / 绑定（绑定才进入原先的绑定界面） -->
     <div v-else class="w-full h-full flex flex-col items-center justify-center p-20">
-      <div class="text-4xl font-light mb-12 text-white">管理员配置</div>
-      
-      <div class="grid grid-cols-3 gap-8 w-full max-w-4xl">
-        <!-- Space Config Card -->
-        <div 
-          class="bg-white/5 border border-white/10 rounded-3xl p-8 flex flex-col items-center gap-6 cursor-pointer hover:bg-white/10 hover:border-white/20 transition-all active:scale-95"
-          @click="handleSpaceConfig"
-        >
-           <div class="w-20 h-20 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
-             <MapPin class="w-10 h-10" />
-           </div>
-           <div class="text-center">
-             <div class="text-2xl font-medium mb-2 text-white">空间配置</div>
-             <div class="text-white/50" v-if="!hasSpaceBinding">绑定设备所属的空间位置信息</div>
-             <div class="text-white/50" v-else>{{ spaceBindingInfo }}</div>
-           </div>
-        </div>
-
-        <!-- Reset Card -->
-        <div 
-          class="bg-white/5 border border-white/10 rounded-3xl p-8 flex flex-col items-center gap-6 cursor-pointer hover:bg-white/10 hover:border-white/20 transition-all active:scale-95"
-          @click="handleReset"
-        >
-           <div class="w-20 h-20 rounded-full bg-red-500/20 flex items-center justify-center text-red-400">
-             <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-           </div>
-           <div class="text-center">
-             <div class="text-2xl font-medium mb-2 text-white">重新初始化</div>
-             <div class="text-white/50" v-if="!hasBinding">清除当前配置并返回初始化页面</div>
-             <div class="text-white/50" v-else>{{ bindingInfo }}</div>
-           </div>
-        </div>
-      </div>
+      <AdminActions
+        title="系统管理"
+        :hint="adminHint"
+        reset-label="重新初始化（清除配置并返回初始化页）"
+        @refresh="handleRefresh"
+        @bind="handleSpaceConfig"
+        @reset="handleReset"
+      />
     </div>
   </el-dialog>
 

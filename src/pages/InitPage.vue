@@ -3,6 +3,7 @@ import { ref, reactive, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { getSpaceData } from '@/api/space'
 import { getTemplates } from '@/templates/registry'
+import AdminActions from '@/components/AdminActions.vue'
 import type { Space } from '@/types/space'
 
 const router = useRouter()
@@ -42,8 +43,36 @@ const onNumDelete = () => { pwValue.value = pwValue.value.slice(0, -1) }
 
 const kbKeys = [['1','2','3'],['4','5','6'],['7','8','9'],['','0','del']]
 
+// 已绑定设备才允许关闭密码页（未绑定时必须走完初始化流程）
+const hasBinding = computed(() => !!localStorage.getItem('initData'))
+
+// 关闭：回到本机绑定的 pad 页面（logo 三击误触时可直接退出，避免误配置）
+const closeInit = () => {
+  const raw = localStorage.getItem('initData')
+  if (!raw) return
+  try {
+    const data = JSON.parse(raw)
+    if (data?.padType) { router.push('/' + data.padType); return }
+  } catch { /* ignore */ }
+  router.push('/')
+}
+
+// 二级界面「刷新」：回到本机绑定的 pad 页面并整页重载（重新拉设备配置 / 心跳 / 订阅）
+const handleAdminRefresh = () => {
+  const raw = localStorage.getItem('initData')
+  try {
+    const data = raw ? JSON.parse(raw) : null
+    if (data?.padType) {
+      window.location.href = router.resolve({ path: '/' + data.padType }).href
+      return
+    }
+  } catch { /* ignore */ }
+  window.location.reload()
+}
+
 // --- Step state ---
-const step = ref<'basic' | 'binding' | 'template'>('basic')
+// menu: 密码校验通过后的二级界面（刷新 / 绑定）；点「绑定」才进入原先的绑定流程
+const step = ref<'menu' | 'basic' | 'binding' | 'template'>('menu')
 
 // --- Step 1: Basic config ---
 const padType = ref('wallPad')
@@ -279,7 +308,10 @@ const handleConfirmTemplate = () => {
 <template>
   <div class="w-full h-full flex items-center justify-center bg-black text-white">
     <!-- Password gate -->
-    <div v-if="!authenticated" class="w-[450px] bg-[#1a1a1a] p-8 rounded-2xl border border-white/10">
+    <div v-if="!authenticated" class="w-[450px] bg-[#1a1a1a] p-8 rounded-2xl border border-white/10 relative">
+      <button v-if="hasBinding" type="button" class="pw-close" title="关闭" @click="closeInit">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
       <div class="pw-title">系统管理</div>
       <div class="pw-label">输入管理员密码：</div>
       <div class="pw-input-row">
@@ -302,8 +334,22 @@ const handleConfirmTemplate = () => {
 
     <!-- Init content -->
     <template v-else>
+    <!-- Step 0: 二级界面 —— 刷新 / 绑定（绑定才进入原先的绑定界面） -->
+    <div v-if="step === 'menu'" class="w-[500px] bg-[#1a1a1a] px-8 py-12 rounded-2xl border border-white/10 relative flex flex-col items-center">
+      <button type="button" class="pw-close" title="关闭" @click="closeInit">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <AdminActions
+        title="系统管理"
+        hint="刷新：重新加载本机界面并重连设备配置 / 心跳；绑定：重新选择设备类型、空间位置与界面模板"
+        @refresh="handleAdminRefresh"
+        @bind="step = 'basic'"
+      />
+      <div class="mt-8 text-center text-gray-500 text-xs">v{{ version }}</div>
+    </div>
+
     <!-- Step 1: Basic -->
-    <div v-if="step === 'basic'" class="w-[500px] bg-[#1a1a1a] p-8 rounded-2xl border border-white/10">
+    <div v-else-if="step === 'basic'" class="w-[500px] bg-[#1a1a1a] p-8 rounded-2xl border border-white/10">
       <h2 class="text-2xl font-bold mb-6 text-center">初始化平板设置</h2>
 
       <el-form label-position="top">
@@ -499,6 +545,9 @@ const handleConfirmTemplate = () => {
 .pw-dot.active { background: #ED8733; }
 .pw-dot.error { background: #ff5443; }
 .pw-error { text-align: center; color: #ff5443; font-size: 16px; margin-top: 8px; height: 24px; }
+.pw-close { position: absolute; top: 12px; right: 14px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.pw-close:hover { background: rgba(255,255,255,0.16); color: #fff; }
+.pw-close:active { background: rgba(255,255,255,0.24); }
 .pw-keyboard { width: 360px; margin: 20px auto 0; }
 .pw-kb-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 8px; }
 .pw-kb-key { width: 80px; height: 56px; border-radius: 8px; background: rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; user-select: none; transition: background 0.15s; }
