@@ -22,7 +22,7 @@ import { getPadInfoByCode, type PadInfoResponse } from '@/api/meeting'
  *
  * 保留原处理方式：pad 信息仍走 HTTP /pad/getPadInfoByCode（后端暂未提供新端点）——用于背景图；
  * 卫生打卡仍走 GET /setCleanTime?spaceCode=&time=（见 @/api/cleaning cleanCheckIn）。
- * 左上角 logo 不在此处：改走 wallPad 的「云端发布内容」链路（usePadPublishedLogo.ts，display_json → geely 兜底）。
+ * logo 与二维码不在此处：改走 wallPad 的「云端发布内容」链路（usePadPublishedContent.ts，display_json 素材 → 各自兜底）。
  */
 
 export type MeetingStatus = 'in' | 'free' | 'freeAndHasPerson' | 'special'
@@ -132,7 +132,7 @@ export function useMeetingPadData() {
     return `${baseURL()}/fileManager/download/${file}`
   }
 
-  // 左上角 logo 改走 wallPad 的「云端发布内容」链路（见 usePadPublishedLogo.ts），此处只用 padInfo 的背景图
+  // logo / 二维码改走 wallPad 的「云端发布内容」链路（见 usePadPublishedContent.ts），此处只用 padInfo 的背景图
   const bgImgs = computed<string[]>(() => {
     const raw = padInfo.value?.imgs
     if (!raw) return []
@@ -164,11 +164,10 @@ export function useMeetingPadData() {
 
   const baojie = ref<BaojieInfo>({ empName: '', endTime: '', updateTime: '', spaceCode: '' })
 
-  const roomCodePath = computed(() => {
-    const c = ctx.value
-    if (!c) return ''
-    return `${c.spaceCode}/${c.floorAreaCode}/${c.floorCode}/${c.deviceCode}`
-  })
+  // 会议室容量（老项目：会议推送 item.capacity → localStorage 'capacity' → meetRoom 显示「可容纳 N 人」）
+  const capacity = ref(0)
+  const cachedCapacity = Number(localStorage.getItem('capacity') || 0)
+  if (Number.isFinite(cachedCapacity) && cachedCapacity > 0) capacity.value = cachedCapacity
 
   // ===== 状态推导（原 App.vue 的 check_mroom_sensor_status + 整体界面状态逻辑） =====
   const recomputePerson = () => {
@@ -259,7 +258,18 @@ export function useMeetingPadData() {
   const handleMeetingMessage = (payload: unknown) => {
     const c = ctx.value
     if (!c || !Array.isArray(payload)) return
-    const list = payload as Array<{ roomCode?: string; meetingList?: MeetingItem[]; downType?: string }>
+    // 生产 payload（Node-RED 实际下发）：
+    // [{ roomId, roomCode:"M803", roomName:"803", capacity:"6",
+    //    meetingList:[{ name, dept, status, startTime:"HH:mm", endTime:"HH:mm" }] }]
+    // 注意：payload 里的 status 是后端预约状态（非「进行中」），进行中一律由本地按时间判定，与老项目一致
+    const list = payload as Array<{
+      roomId?: number | string
+      roomCode?: string
+      roomName?: string
+      capacity?: number | string
+      meetingList?: MeetingItem[]
+      downType?: string
+    }>
     if (list.length) isDown.value = list[0]?.downType ?? ''
 
     meetingList.value = []
@@ -267,6 +277,12 @@ export function useMeetingPadData() {
 
     const room = list.find((r) => r?.roomCode === c.deviceCode)
     if (room) {
+      // 容量：对齐老项目（payload 里是字符串，如 "6"）
+      const cap = Number(room.capacity)
+      if (Number.isFinite(cap) && cap > 0) {
+        capacity.value = cap
+        localStorage.setItem('capacity', String(cap))
+      }
       const now = Date.now()
       for (const it of room.meetingList ?? []) {
         const startSec = hhmmToSec(it.startTime)
@@ -413,14 +429,14 @@ export function useMeetingPadData() {
 
   // 现场诊断（仅开发构建）：F12 执行 copy(window.__meetingPad) 可查看当前会议/房间状态
   if (import.meta.env.DEV && typeof window !== 'undefined') {
-    ;(window as any).__meetingPad = { obj, currentStatus, isDown, next, lastTime, meetingList, bookList, statusObj }
+    ;(window as any).__meetingPad = { obj, currentStatus, isDown, next, lastTime, meetingList, bookList, statusObj, capacity }
   }
 
   return {
     ctx,
     roomName,
+    capacity,
     bgImgs,
-    roomCodePath,
     obj,
     currentStatus,
     isDown,

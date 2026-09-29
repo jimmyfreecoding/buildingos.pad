@@ -26,7 +26,7 @@
         <PadLocalTime @click="onTimeClick" />
       </div>
 
-      <PadMeetRoom :name="roomName" style="margin-top: 66px; z-index: 10" />
+      <PadMeetRoom :name="roomName" :capacity="capacity" style="margin-top: 66px; z-index: 10" />
 
       <PadMeeting
         :currentStatus="currentStatus"
@@ -51,7 +51,7 @@
       />
 
       <PadErweima
-        :roomCode="roomCodePath"
+        :src="publishedQrUrl"
         :fallbackSrc="resolvedQrFallback"
         style="position: absolute; bottom: 0; right: 32px; z-index: 10"
       />
@@ -80,7 +80,7 @@ import PadMeetList from './components/PadMeetList.vue'
 import PadErweima from './components/PadErweima.vue'
 import PadClearTime from './components/PadClearTime.vue'
 import { useMeetingPadData } from './useMeetingPadData'
-import { usePadPublishedLogo } from './usePadPublishedLogo'
+import { usePadPublishedContent } from './usePadPublishedContent'
 
 const props = withDefaults(defineProps<{
   /** 主题主色：会议中状态底色 / 进行中标签 / 进度条色族基准 */
@@ -109,8 +109,8 @@ const router = useRouter()
 
 const {
   roomName,
+  capacity,
   bgImgs,
-  roomCodePath,
   obj,
   currentStatus,
   isDown,
@@ -119,8 +119,8 @@ const {
   onCheckedIn,
 } = useMeetingPadData()
 
-// 左上角 logo：云端发布内容（wallPad 链路）→ geely 兜底
-const { publishedLogoUrl } = usePadPublishedLogo()
+// logo / 二维码：云端发布内容（wallPad 链路）→ 各自兜底（geely / 扫码无效图）
+const { publishedLogoUrl, publishedQrUrl } = usePadPublishedContent()
 
 // 兜底二维码（扫码无效）：主题未提供时用内置静态图
 const resolvedQrFallback = props.qrFallbackSrc || new URL('./assets/images/qr-invalid.png', import.meta.url).href

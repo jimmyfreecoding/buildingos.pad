@@ -17,6 +17,7 @@
         <template #default="{ row }">{{ row.startTime }}-{{ row.endTime }}</template>
       </el-table-column>
       <el-table-column prop="name" align="center" label="预订人" />
+      <el-table-column prop="dept" align="center" label="预约部门" width="200px" />
       <el-table-column prop="status" align="center" label="状态">
         <template #default="scope">
           <div
