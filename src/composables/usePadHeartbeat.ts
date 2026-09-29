@@ -109,11 +109,18 @@ export function usePadHeartbeat(kind: PadHeartbeatKind) {
     meetingFlag.value = inProgress
   }
 
+  // padStatus：0 无会无人 / 1 有会有人 / 2 无会有人 / 3 有会无人
+  // 注：personPresent 为 null（从未收到人体传感器数据）时按「无人」退化，与老项目一致
+  //     （老项目该场景恒发 0，此处同为 0，不会出现「有会无人=3」的误报）
+  //     老项目另有 status.value === "1" 的字符串比较 bug，导致有会时恒发 0；此处按语义表发 1/3
   const computePadStatus = (): number => {
+    const hasPerson = personPresent.value === 1
+    const unknownPerson = personPresent.value === null
     if (meetingFlag.value === 1) {
-      return personPresent.value === 1 ? 1 : 3
+      if (unknownPerson) return 0
+      return hasPerson ? 1 : 3
     }
-    return personPresent.value === 1 ? 2 : 0
+    return hasPerson ? 2 : 0
   }
 
   const setup = () => {
