@@ -14,9 +14,10 @@ import { getPadCode } from '@/utils/logClk'
  *   MQTT 设备配置响应 pad[0].code（usePadHeartbeat 写入 getPadCode）
  *     → 边端 GET /api/pad/display?spaceCode=&deviceCode=（display_json = 云端 content_config 级联物化结果）
  *     → displayJson 里的素材：
- *          ① 直接带 imageUrl / url → 用该地址（相对路径按 mapViewer.resolveUrl 规则补全）
- *          ② 只带 materialId → 用 /api/space/getSpaceFiles 清单里 id = f_{materialId} 的素材 url
- *     （与 services/mapViewer.ts 的素材定位两级规则一致）
+ *          ① materialId → 用 /api/space/getSpaceFiles 清单里 id = f_{materialId} 的素材 url
+ *             （edge 自己生成 /api/asset/file?...，nginx /api/ → 后端 sendFile，一定可取）
+ *          ② 清单里没有 → 退回素材自带的 imageUrl / url（可能是云端路径，仅作兜底）
+ *     （与 services/mapViewer.ts 的 pickByMaterialId 同构：两套 pad 用同一套素材定位机制）
  *
  * 用途分配：logo → 左上角（兜底 geely）；二维码 → 保洁打卡（兜底内置「扫码无效」图）；
  *          背景图 → PadBg 轮播（支持多张，兜底主题内置图）。
@@ -49,15 +50,21 @@ function resolveUrl(url: string): string {
   return `${base.replace(/\/+$/, '')}/${url.replace(/^\/+/, '')}`
 }
 
-// 素材键名不固定：显式优先键 → 任意匹配正则的键
+// 素材键名不固定：显式优先键 → 任意匹配正则的键。键名取自边端 materialTypes（filesync.controller typeMap）：
+//   logo / bookingqrcode / serviceqrcode / qqjqrcode / housekeeperqrcode / map / mapImage /
+//   buildingImg（楼宇图片）/ homeImage（首页图片）/ homeVideo / exceptionfeedback
 const LOGO_KEYS = ['logo', 'logoImage', 'logoimage', 'logoImg', 'logoimg', 'padLogo']
 const LOGO_RE = /logo/i
 const QR_KEYS = ['qrCode', 'qrcode', 'qr', 'qrImage', 'erweima', 'ewm']
 const QR_RE = /qr|erweima|ewm/i
-const BG_KEYS = ['background', 'backgroundImage', 'bg', 'bgImage', 'imgs', 'images', 'carousel']
-const BG_RE = /^(bg|background|backdrop|imgs?|images?|carousel)/i
-// 明确排除壁挂屏地图素材（map / mapImage），避免被当成背景图
-const EXCLUDE_RE = /^(map|mapimage|map_image|mapimage2)$/i
+// 背景图：显式 bg/background/imgs 之外，也接受边端的 buildingImg（楼宇图片）/ homeImage（首页图片）
+const BG_KEYS = [
+  'background', 'backgroundImage', 'bg', 'bgImage', 'imgs', 'images', 'carousel',
+  'buildingImg', 'buildingImage', 'homeImage', 'homeImg',
+]
+const BG_RE = /^(bg|background|backdrop|imgs?|images?|carousel|buildingimg|buildingimage|homeimg|homeimage)/i
+// 明确排除：壁挂屏地图素材（map/mapImage）不能被当成背景图；homeVideo 是视频，PadBg 只渲染图片
+const EXCLUDE_RE = /^(map|mapimage|map_image|mapimage2|homevideo|video)$/i
 
 function matchKeys(displayJson: unknown, preferred: string[], re: RegExp): string[] {
   if (!displayJson || typeof displayJson !== 'object') return []
@@ -134,18 +141,24 @@ export function usePadPublishedContent() {
     }
   }
 
+  // 与 wallpad（services/mapViewer.pickByMaterialId）一致：**materialId → edge 素材清单优先**。
+  // 原因：display_json 里的 imageUrl/url 是云端自己的路径（如 /pad/material/image/13），
+  // 在 edge 上 /pad/ 是 pad 静态 SPA（try_files → index.html，200+HTML），<img> 必然解码失败；
+  // 而清单里的 url 是 edge 自己生成的 /api/asset/file?...（nginx /api/ → 后端 sendFile），一定可取。
+  // 清单里查不到（素材尚未同步到边端 / 没配 materialId）才退回 display_json 带的直链。
   const resolveEntryUrls = async (entry: any, key: string): Promise<string[]> => {
-    const direct = inlineUrls(entry)
-    if (direct.length) return direct.map(resolveUrl)
     const ids = materialIdsOf(entry)
-    if (!ids.length) return []
-    const files = await loadFiles(key)
-    const out: string[] = []
-    for (const id of ids) {
-      const hit = files.find((f) => String(f.id).replace(/^f_/, '') === id)
-      if (hit?.url) out.push(resolveUrl(hit.url))
+    if (ids.length) {
+      const files = await loadFiles(key)
+      const out: string[] = []
+      for (const id of ids) {
+        const hit = files.find((f) => String(f.id).replace(/^f_/, '') === id)
+        if (hit?.url) out.push(resolveUrl(hit.url))
+      }
+      if (out.length) return out
     }
-    return out
+    const direct = inlineUrls(entry)
+    return direct.map(resolveUrl)
   }
 
   function apply(logo: string, qr: string, nextBgs: string[]) {

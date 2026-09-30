@@ -1,6 +1,6 @@
 # 空间地图文件端点开发指南（边缘端侧）
 
-> 适用：buildingos.pad wallPad 2.5D 地图加载链路。Pad 端已完成（`src/api/spaceFile.ts` → `GET {VITE_EDGE_BASE_URL}/api/space/getSpaceFiles`，未配置时回退 `{VITE_APP_BASE_URL}` 即边端 Node-RED）。地图文件由**边缘网关同步**该 pad 绑定空间的类型为 `map` / `mapimage` 的文件，经本端点提供清单，文件字节由 Pad 按 `url` 直连下载。**Pad 直连边缘端端点，云端不与 Pad 直接通信。**
+> 适用：buildingos.pad wallPad 2.5D 地图加载链路，以及会议门牌等按 `materialId` 取云端素材的 pad（本清单接口 2026-09 起返回空间内**全部**素材类型）。Pad 端已完成（`src/api/spaceFile.ts` → `GET {VITE_EDGE_BASE_URL}/api/space/getSpaceFiles`，未配置时回退 `{VITE_APP_BASE_URL}` 即边端 Node-RED）。地图文件由**边缘网关同步**该 pad 绑定空间的类型为 `map` / `mapimage` 的文件，经本端点提供清单，文件字节由 Pad 按 `url` 直连下载。**Pad 直连边缘端端点，云端不与 Pad 直接通信。**
 
 ## 1. 架构
 
@@ -87,7 +87,7 @@ Pad (前端)
 | files | array | 该绑定空间已同步的文件列表；无文件时返回空数组 `[]`（仍为 code 0） |
 | files[].id | string/number | 文件唯一标识 |
 | files[].name | string | 文件名（含扩展名） |
-| files[].type | string | 文件类型，仅两种：`map` = 2.5D 地图数据文件（.acmap 加密格式）；`mapimage` = 静态图片（jpg/png），2.5D 无法使用时的降级图 |
+| files[].type | string | **file_asset.asset_type 原样回传**。地图区只用两种：`map` = 2.5D 地图数据文件（.acmap 加密格式）；`mapimage` = 静态图片（jpg/png），2.5D 无法使用时的降级图。其余类型（`bookingqrcode` / `logo` / `buildingImg` / `homeImage` …，见 `filesync.controller.ts` 的 typeMap）同样出现在清单里，供会议门牌等按 `materialId` 定位素材 —— **2026-09 起不再筛成只剩地图两类**：筛掉会导致 Pad 只能退回 `display_json` 里的 url，而那是云端路径（edge 上 `/pad/` 是静态 SPA，取回 index.html，图片必然失败） |
 | files[].url | string | 文件下载地址，**完整绝对 URL**（Pad 不做拼接），必须可被 Pad 浏览器直连 GET |
 | files[].size | number | 字节数（可选，用于日志） |
 | files[].md5 | string | 内容哈希（可选，建议提供，便于边缘端做缓存控制） |
@@ -175,6 +175,7 @@ curl -i -X OPTIONS "http://{edge-host}/files/space/SMART/ZB/3F/3FBNW/map/3F.acma
 ## 7. 边缘端实现记录（2026-09，buildingos.ai edge/server）
 
 - **已实现**：`edge/server/src/filesync/filesync.controller.ts` 新增 `GET /api/space/getSpaceFiles`（同文件中的 `/api/asset/file` 即文件字节端点）。
+- **2026-09 变更**：清单查询去掉 `asset_type IN ('map','mapImage')` 过滤，改为返回该空间 `deleted = FALSE` 的全部素材；`files[].type` 改为 `file_asset.asset_type` 原样回传（此前非地图素材会被标成 `mapimage`，地图区「未配 materialId」的旧数据兜底会误选到二维码/logo）。字节仍由 `/api/asset/file` 提供；素材本地路径、sha256 校验、同步逻辑均未变。
 - **匹配规则**（与上文 2.1 对齐，按现有 file_asset 数据模型落地）：
   - 数据源：边缘 PG `file_asset`（filesync 同步的 `map` / `mapImage`，`deleted=false`）；
   - 必选 `spaceCode`，缺失返回空清单（code 0）；
