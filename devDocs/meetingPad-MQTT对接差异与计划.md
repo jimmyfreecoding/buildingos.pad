@@ -116,6 +116,7 @@ topic: /iot/meeting/mroom/JIXING/A/8F/M803      payload: array[1]
 ### 2.5 连接与寻址（补充，非四类但会直接导致「没数据」）
 
 - **E1（P0 风险）**：老项目 broker/账号硬编码；新项目读 `config.js`。线上 `pad-config.js` 必须指向推送预约会议的那台 broker，否则门牌静默无数据。
+- **E5（实测，已修）**：`VITE_APP_BASE_URL`(1880) 与 pad 页面(7828) **跨源**，且边端 Node-RED 未实现 `/pad/getPadInfoByCode` → 该请求必被 CORS 拦（`No 'Access-Control-Allow-Origin'`）。结论：pad 侧凡是要走 HTTP 的都只走 `VITE_EDGE_BASE_URL`(7828，nginx `/api/` → backend 7829，同源)；`VITE_APP_BASE_URL` 仅 Node-RED 的 `/iot/setting/get/structure`、`/iot/setting/get/device` 使用。
 - **E2**：老项目 `subscribe()` 把每个回调挂在全局 `message` 事件上（所有消息进所有回调，靠 `if (topic===...)` 兜）；新项目按 topic 路由分发（调研文档 §6 明确不沿用）。等价但更正确。
 - **E3**：老项目还读了 `spaceObject.mqttstring`（base64 的 url/username/password）但随后被硬编码覆盖，仅打印——新项目不读它，**无实际损失**。
 - **E4**：新项目 `usePadCommand` 未实现 `bind`（老项目 `action==='bind'` → `localStorage.clear()` + reload）。
@@ -152,6 +153,7 @@ topic: /iot/meeting/mroom/JIXING/A/8F/M803      payload: array[1]
 | 4 | 二维码 | **保洁打卡**；二维码是**云端下发的素材**，参考 wallpad | ✅ 改为 display_json 素材链路 + wallPad 式白框渲染；兜底「扫码无效」图 |
 | 5 | padStatus | **对齐老项目** | ✅ 未知态已退化为 0；有会时的 1/3 保留语义表（见 A2 说明） |
 | 6 | 是否需要响应 `bind` | **不响应 bind，只响应 refresh** | 当前实现即如此，无需改 |
+| 7 | 背景图来源 | **和二维码/logo 一样走 edge**（云端下发素材），不再走 `/pad/getPadInfoByCode` | ✅ 已实施：背景/logo/二维码统一 display_json 素材链路，pad 侧不再依赖 1880 |
 
 **已定**：B2 会议室名 —— **先用原名（`initData.roomName`）、不切换到 MQTT `roomName`**，当前实现即符合，无需改代码。
 
@@ -205,9 +207,13 @@ topic: /iot/meeting/mroom/JIXING/A/8F/M803      payload: array[1]
 | 容量 B1 | 同上 + `components/PadMeetRoom.vue` | `room.capacity`（字符串→Number）存 ref + `localStorage.capacity`；名称右侧显示「可容纳 N 人」（数字 coral，`v-if="capacity>0"`） |
 | 预约部门列 B3 | `components/PadMeetList.vue` | 补 `dept` 列（宽 200，适配 706px） |
 | 二维码 B4 | 新增 `shared/usePadPublishedContent.ts`（logo + 二维码统一）；`components/PadErweima.vue`；`MeetingPadScreen.vue` | 二维码改为云端下发素材：`/api/pad/display` display_json 的 qr 素材 → `imageUrl/url`，或 `materialId` ↔ `/api/space/getSpaceFiles` 清单（与 mapViewer 两级定位一致）；文案「保洁打卡」；未配置/失败 → 内置「扫码无效」图；原 `usePadPublishedLogo.ts` 被其取代（已删除），wechat 动态二维码移除 |
+| **背景图 / logo / 二维码全部走 edge** | `shared/usePadPublishedContent.ts`、`components/PadBg.vue`、`MeetingPadScreen.vue`、`blue|orange/index.vue` | 背景素材也改从 display_json 取（键匹配 `bg/background/backdrop/imgs/images/carousel`，排除 `map/mapImage`；单图 `imageUrl/url`、多图 `urls/images/imgs/files`，只有 `materialId` 时按 `/api/space/getSpaceFiles` 的 `f_{id}` 定位）→ 支持多张继续轮播，取不到用主题内置兜底图；现场可 `window.__meetingPadRefreshContent()` 强制重拉 |
+| **停用 /pad/getPadInfoByCode** | `shared/useMeetingPadData.ts`、`src/api/meeting.ts` | 该端点是老云端 Node-RED 端点：边端 `VITE_APP_BASE_URL`=边端 Node-RED(1880) **未实现**它，且 pad 页面在 7828、请求 1880 **跨源被 CORS 拦**（实测 `No 'Access-Control-Allow-Origin' header`）。背景图改走 display_json 后该调用已无用途 → 从 composable 移除（api 函数保留并标注未使用，便于将来边端按 `/api/pad/getPadInfoByCode` 提供时启用） |
 | padStatus A1 | `src/composables/usePadHeartbeat.ts` | `personPresent === null`（从未有传感器数据）时退化为 0，不再当「无人」报 3 |
 | bind | — | 确认不响应 `bind`，只响应 `refresh`；当前实现即如此，未改 |
 
 **未做**（待确认/无样本）：humensensor、cleaning 的字段级核对；A2 严格复刻老项目 padStatus；D4 clientId 策略；C3 打卡端点落点；A4 文案滞后小修。
+
+**等待边端（本次联调阻塞项）**：云端已推送 `/iot/meeting/mroom/{space}/{area}/{floor}/{device}`，但**未桥接到 edge broker** → pad 收不到。edge 侧桥接过滤规则必须用 `#`（在 `mroom/` 下该主题是 4 层：`.../JIXING/A/8F/M803`，写成 `/iot/meeting/mroom/JIXING/+` 只能匹配 `.../JIXING/A`，一条都过不来）。pad 侧订阅的正是精确主题，桥接通了即生效，无需改动。建议同批核对 `/iot/mroom/busystatus/...`、`/iot/mroom/lastbusytime/...`、`/iot/status/humensensor/...`、`/iot/status/cleaning/...`。
 
 **明确不改**：B2 会议室名 —— 保持 `initData.roomName` 原名，不切换到 MQTT `roomName`（用户 2026-09 决策）。

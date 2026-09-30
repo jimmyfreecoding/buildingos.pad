@@ -12,7 +12,7 @@
       <PadBg
         :dw="DW"
         :dh="DH"
-        :imgs="bgImgs"
+        :imgs="publishedBgs"
         :fallback-imgs="fallbackBgs"
         style="position: absolute; left: 0; top: 0; z-index: 1"
       />
@@ -110,7 +110,6 @@ const router = useRouter()
 const {
   roomName,
   capacity,
-  bgImgs,
   obj,
   currentStatus,
   isDown,
@@ -119,8 +118,8 @@ const {
   onCheckedIn,
 } = useMeetingPadData()
 
-// logo / 二维码：云端发布内容（wallPad 链路）→ 各自兜底（geely / 扫码无效图）
-const { publishedLogoUrl, publishedQrUrl } = usePadPublishedContent()
+// 背景图 / logo / 二维码：统一由 edge 的云端发布内容提供（display_json 素材）→ 各自兜底
+const { publishedLogoUrl, publishedQrUrl, publishedBgs } = usePadPublishedContent()
 
 // 兜底二维码（扫码无效）：主题未提供时用内置静态图
 const resolvedQrFallback = props.qrFallbackSrc || new URL('./assets/images/qr-invalid.png', import.meta.url).href

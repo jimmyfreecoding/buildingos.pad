@@ -3,7 +3,6 @@ import { useSpaceStore } from '@/stores/space'
 import { useMqtt } from '@/utils/useMqtt'
 import { topics } from '@/utils/mqtt'
 import { isCompleteSpaceContext } from '@/utils/mqttTopics'
-import { getPadInfoByCode, type PadInfoResponse } from '@/api/meeting'
 
 /**
  * 会议室门牌数据层（原项目 buildingos_meetingpad/src/App.vue 的界面状态逻辑）。
@@ -14,15 +13,15 @@ import { getPadInfoByCode, type PadInfoResponse } from '@/api/meeting'
  * - 保洁信息     订阅 topics.cleaningStatus(c, deviceCode)（原 /iot/status/cleaning/...）
  * - 最近10分钟有无人 /iot/mroom/busystatus   → topics.meetingBusyStatus(c)
  * - 最近占用时间     /iot/mroom/lastbusytime → topics.meetingLastBusyTime(c)
- * - 设备配置     订阅 topics.deviceConfigResponse(c)，发布 topics.deviceConfigGet()（原 /iot/setting/get/device）
  * - pad 心跳     由 TemplateLoader 的 usePadHeartbeat('meetingPad') 统一处理（标准模式）
  * - 刷新指令     由 TemplateLoader 的 usePadCommand() 统一处理（标准模式）
+ * - 设备配置     由 usePadHeartbeat 与 usePadPublishedContent 各自订阅/请求，此处不重复
  *
  * 门牌端不做开门：二维码仅展示（保洁人员用手机扫码打卡），因此不再发布 topics.doorAction。
  *
- * 保留原处理方式：pad 信息仍走 HTTP /pad/getPadInfoByCode（后端暂未提供新端点）——用于背景图；
+ * 背景图 / logo / 二维码都不在此处：统一走 edge 的「云端发布内容」链路
+ * （usePadPublishedContent.ts：display_json → 素材直链或 materialId ↔ /api/space/getSpaceFiles）。
  * 卫生打卡仍走 GET /setCleanTime?spaceCode=&time=（见 @/api/cleaning cleanCheckIn）。
- * logo 与二维码不在此处：改走 wallPad 的「云端发布内容」链路（usePadPublishedContent.ts，display_json 素材 → 各自兜底）。
  */
 
 export type MeetingStatus = 'in' | 'free' | 'freeAndHasPerson' | 'special'
@@ -113,36 +112,10 @@ export function useMeetingPadData() {
   // 会议室门牌：绑定的是会议室（InitPage 限制 type=meetingRoom）
   const roomName = computed(() => String(init.roomName || init.roomCode || ''))
 
-  // --- pad 信息（背景图 / 开门密码）——保留原 /pad/getPadInfoByCode 处理方式 ---
-  const padInfo = ref<PadInfoResponse | null>(null)
-  try {
-    const cached = localStorage.getItem('padInfo')
-    if (cached) padInfo.value = JSON.parse(cached)
-  } catch { /* ignore */ }
-
-  let padInfoLoading = false
-  let padInfoRequestedFor = ''
-
-  const baseURL = () =>
-    window.config?.VITE_APP_BASE_URL || import.meta.env.VITE_APP_BASE_URL || ''
-
-  const resolveFile = (file?: string): string => {
-    if (!file) return ''
-    if (/^https?:\/\//.test(file)) return file
-    return `${baseURL()}/fileManager/download/${file}`
-  }
-
-  // logo / 二维码改走 wallPad 的「云端发布内容」链路（见 usePadPublishedContent.ts），此处只用 padInfo 的背景图
-  const bgImgs = computed<string[]>(() => {
-    const raw = padInfo.value?.imgs
-    if (!raw) return []
-    let arr: unknown = raw
-    if (typeof raw === 'string') {
-      try { arr = JSON.parse(raw) } catch { return [] }
-    }
-    if (!Array.isArray(arr)) return []
-    return arr.filter((x): x is string => typeof x === 'string' && x.length > 0).map(resolveFile)
-  })
+  // 背景图 / logo / 二维码统一走 edge 的「云端发布内容」链路（usePadPublishedContent.ts）：
+  //   display_json（/api/pad/display，同源 7828）→ 素材直链或 materialId ↔ /api/space/getSpaceFiles
+  // 因此本 composable 不再调用 /pad/getPadInfoByCode（那是老的云端 Node-RED 端点，
+  // 边端部署里 1880 没有实现，且与 pad 页面跨源被 CORS 拦）。
 
   // --- 会议 / 房间状态 ---
   const statusObj = ref<Record<string, SensorState>>({})
@@ -354,32 +327,6 @@ export function useMeetingPadData() {
     baojie.value.spaceCode = `${c.spaceCode}_${c.floorAreaCode}_${c.floorCode}_${c.deviceCode}`
   }
 
-  const requestPadInfo = async (code: string, layer: string) => {
-    if (!code) return
-    const key = `${code}|${layer}`
-    if (padInfoLoading || padInfoRequestedFor === key) return
-    padInfoLoading = true
-    padInfoRequestedFor = key
-    try {
-      const data = await getPadInfoByCode({ code, layer })
-      if (data && Number(data.id) !== 0) {
-        padInfo.value = data
-        localStorage.setItem('padInfo', JSON.stringify(data))
-      }
-    } catch (e) {
-      // 后端暂未提供该端点时静默降级（界面用主题内置背景图 / 默认开门密码）
-      console.warn('[meetingPad] getPadInfoByCode failed:', e)
-    } finally {
-      padInfoLoading = false
-    }
-  }
-
-  const handleDeviceConfigMessage = (payload: unknown) => {
-    const raw = payload as { pad?: Array<{ code?: string; layer?: string }> }
-    const pad = raw?.pad?.[0]
-    if (pad?.code) void requestPadInfo(pad.code, pad.layer ?? '')
-  }
-
   // ===== 订阅装配 =====
   const unsubs: Array<() => void> = []
   let bookTimer: ReturnType<typeof setInterval> | null = null
@@ -399,15 +346,7 @@ export function useMeetingPadData() {
     bind(topics.meetingBusyStatus(c), (payload) => handleBusyStatusMessage(payload))
     bind(topics.meetingLastBusyTime(c), (payload) => handleLastBusyTimeMessage(payload))
     bind(topics.cleaningStatus(c, c.deviceCode), (payload) => handleCleaningMessage(payload))
-    bind(topics.deviceConfigResponse(c), (payload) => handleDeviceConfigMessage(payload))
-
-    // 请求设备配置（与 pad 心跳同源；用于获取 pad code/layer 后拉取 padInfo）
-    mqtt.publish(topics.deviceConfigGet(), {
-      spaceCode: c.spaceCode,
-      floorAreaCode: c.floorAreaCode,
-      floorCode: c.floorCode,
-      areaCode: c.deviceCode,
-    })
+    // 设备配置（pad code → 云端素材）由 usePadHeartbeat 与 usePadPublishedContent 各自订阅/请求，此处不再重复
 
     baojie.value.spaceCode = `${c.spaceCode}_${c.floorAreaCode}_${c.floorCode}_${c.deviceCode}`
     booksCheck()
@@ -436,7 +375,6 @@ export function useMeetingPadData() {
     ctx,
     roomName,
     capacity,
-    bgImgs,
     obj,
     currentStatus,
     isDown,

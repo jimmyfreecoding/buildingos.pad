@@ -19,7 +19,7 @@ import { computed } from 'vue'
 const props = withDefaults(defineProps<{
   dw?: number
   dh?: number
-  /** 后端（padInfo.imgs）下发的背景图 */
+  /** 云端下发素材背景图（display_json，可多张 → 轮播） */
   imgs?: string[]
   /** 主题内置兜底背景图 */
   fallbackImgs?: string[]
