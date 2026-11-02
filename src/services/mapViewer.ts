@@ -8,7 +8,10 @@ import { isH2zBytes, startH2z, type H2zHandle, type MapStates } from '@/services
 
 // wallPad 地图区显示服务：2.5D 地图单例（懒加载 + 模板生命周期内单实例常驻）
 //
-// 显示规则：地图区由「本 pad 的 display_json（= 云端 content_config 级联物化结果）」驱动
+// 显示规则（2026-11-02 起）：
+//   ⓪ 本 pad 所在楼层有楼层地图（云端「空间 → 楼层」上传的 .h2z，文件同步清单类型 floormap）→ 自动用它，不看下面的配置；
+//      加载失败 / 超时再按下面的规则走
+// 原规则：地图区由「本 pad 的 display_json（= 云端 content_config 级联物化结果）」驱动
 //   ① 配了 map（.h2z 楼层交付包 或 旧 .acmap，按文件内容识别）→ 优先地图，下载/初始化失败或 20s 超时自动降级到图片
 //   ② 只配了 mapImage(图片) → 优先图片
 //   ③ 没配（display_json 里没有 map/mapImage）或配置取不到 → 模板内置默认图（MapCanvas 的 slot 兜底）
@@ -55,7 +58,9 @@ export interface MapDetail {
   /** display_json 来源：iot_device(云端已物化) / content_config(边端现场级联) / none */
   displaySource?: string
   /** 素材定位方式：materialId(精确) / materialId-miss(配了但边端没有) / floor-token(按楼层码兜底) / single-asset(全空间唯一) / none */
-  matched?: 'materialId' | 'materialId-miss' | 'floor-token' | 'single-asset' | 'none'
+  matched?: 'floormap' | 'materialId' | 'materialId-miss' | 'floor-token' | 'single-asset' | 'none'
+  /** 用上的楼层地图文件名（matched = floormap 时） */
+  floorMap?: string
   /** 失败原因细节（错误信息 / 打不开的图片地址） */
   error?: string
   /** 地图素材格式：h2z（楼层交付包）/ acmap（旧 2.5D） */
@@ -225,6 +230,25 @@ async function fetchFiles(ctx: SpaceContext): Promise<SpaceFile[]> {
     _filesCache = null
     return []
   }
+}
+
+/**
+ * 本 pad 所在楼层的楼层地图（文件同步清单里 type = floormap）：文件名 = `<楼层区域>--<楼层编码>.h2z`，
+ * 没有楼层区域（或是 '0'）时 `<楼层编码>.h2z`；有楼层区域但只找到旧命名 `<楼层编码>.h2z` 也用（老数据）。
+ * 命名规则同云端 SpaceService.h2zFloorFile。
+ */
+function pickFloorMap(files: SpaceFile[], ctx: SpaceContext): SpaceFile | undefined {
+  const floor = String(ctx.floorCode || '').trim()
+  if (!floor) return undefined
+  const clean = (v: string) => v.replace(/[\\/:*?"<>|]+/g, '_').toLowerCase()
+  const area = String(ctx.floorAreaCode || '').trim()
+  const maps = files.filter((f) => String(f.type).toLowerCase() === 'floormap')
+  const want = area && area !== '0' ? [`${clean(area)}--${clean(floor)}.h2z`, `${clean(floor)}.h2z`] : [`${clean(floor)}.h2z`]
+  for (const w of want) {
+    const hit = maps.find((f) => String(f.name).toLowerCase() === w)
+    if (hit) return hit
+  }
+  return undefined
 }
 
 // 精确匹配：display_json 的 materialId ↔ 边端 files[].id（边端 id 形如 `f_12`，12 即云端 file_asset.id）
@@ -443,7 +467,19 @@ export async function ensureMap(container: HTMLElement): Promise<void> {
         return
       }
 
-      // 先取本 pad 的 display_json（云端 content_config 级联物化到 iot_device 的结果，经边端 /api/pad/display 读出）
+      // ① 楼层地图优先：云端「空间 → 楼层」给这一层传了 .h2z，就自动用它（文件同步清单类型 floormap，边端已同步），
+      //    不用在素材库再传、内容配置里分配（2026-11-02 定，buildingos docs/3D地图和点位规划设计.md §10）。
+      //    加载失败 / 超时再走下面原来的规则（分配的地图素材 → 地图图片 → 默认图）。
+      const allFiles = await fetchFiles(ctx)
+      const floorMap = pickFloorMap(allFiles, ctx)
+      if (floorMap) {
+        mapState.detail = { files: allFiles.length, matched: 'floormap', floorMap: floorMap.name }
+        const started = await startMap(container, floorMap, () => setFallback('map-timeout'))
+        if (started) return
+        console.warn('[mapViewer] 楼层地图加载失败，退回内容配置的地图素材：', floorMap.name)
+      }
+
+      // ② 先取本 pad 的 display_json（云端 content_config 级联物化到 iot_device 的结果，经边端 /api/pad/display 读出）
       const hint = await resolveMapHint(ctx)
       const assigned = hint.known && (hint.map || hint.mapImage)
 
