@@ -13,6 +13,7 @@
     "lint:fix": "eslint . --ext .ts,.vue --fix"
   },
   "dependencies": {
+    "@h2z/viewer": "file:vendor/h2z-viewer-0.1.0.tgz",
     "@types/qs": "^6.14.0",
     "@vueuse/core": "^14.1.0",
     "axios": "^1.13.2",
@@ -24,6 +25,7 @@
     "pinia": "^3.0.4",
     "qs": "^6.14.1",
     "tailwind-merge": "^3.3.0",
+    "three": "^0.186.1",
     "v-scale-screen": "^2.3.0",
     "vue": "^3.4.15",
     "vue-router": "^4.2.5"
