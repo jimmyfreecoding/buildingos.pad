@@ -2,7 +2,7 @@
 // .h2z = h2z.3d 编译的楼层地图（manifest.json / semantics.json / scene.glb）+ IOC 点位（points.json）等，
 // 格式见 buildingos docs/3D地图和点位规划设计.md §3。
 //
-// Pad 上的样子（2026-11-02 定）：
+// Pad 上的样子（2026-11-02 定，参数在主题 dark-pad 里）：
 //  - 暗色楼层（模型原色压暗、略带蓝灰，和 pad 深色界面一致），画面按屏幕实际像素渲染（不糊）；
 //  - 所有房间名都显示：本 pad 房间橙底白字最醒目，会议室按占用 / 空闲着色，其他房间深底浅字；
 //    标签跟着缩放 / 转动走，字号随缩放变化，互相挡住时按「本房间 > 会议室 > 其他」留一个；
@@ -13,24 +13,35 @@
 // viewer 挂在我们自己的 wrapper 上，换容器时整个 wrapper 搬过去，viewer 内部的 ResizeObserver 盯的是 wrapper。
 import * as THREE from 'three'
 import { unzipSync, strFromU8 } from 'fflate'
-import { Viewer, loadMap } from '@h2z/viewer'
+import { Viewer, loadMap, resolveTheme } from '@h2z/viewer'
 
 const BASE_URL = import.meta.env.BASE_URL.endsWith('/')
   ? import.meta.env.BASE_URL
   : `${import.meta.env.BASE_URL}/`
 const DECODER_PATH = `${BASE_URL}static/vendor/draco/`
 
-/** 背景色和旧 2.5D 地图一致（#090909） */
-const BG = 0x090909
-/** 楼层压暗：原色 × DIM，再往 TINT 靠一点（蓝灰，和 pad 卡片底色同一色系） */
-const DIM = 0.55
-/** 曝光（viewer 默认 0.85）：模型灯光按旧版 ×π，光靠改材质压不下去 */
-const EXPOSURE = 0.18
-const TINT = new THREE.Color(0x1c2536)
-const TINT_MIX = 0.25
+/**
+ * 皮肤（主题）：颜色、压暗、字号、取景都在主题文件里（h2z.3d themes/，随 @h2z/viewer 发布，说明见 h2z.3d docs/THEME.md）。
+ * 用哪个（高 → 低）：pad 运行时配置 window.config.VITE_MAP_THEME（内置名字或主题 JSON 的地址）
+ *   > .h2z 里带的 theme.json > 地图 semantics.theme > 墙板默认 dark-pad。
+ */
+const PAD_DEFAULT_THEME = 'dark-pad'
+/** 只用来拿房间几何的高亮（随后清掉，自己画填色和描边） */
 const HIGHLIGHT = { color: 0xff8a3d, opacity: 0.45 }
-/** 自动飞到房间时，画面里至少看到这么大的范围（米），带上周边好认位置 */
-const FOCUS_MIN_SPAN = 26
+
+/** 运行时配置里的主题：内置名字直接用，像地址的就去取 JSON；取不到返回 null（退到下一级） */
+async function configTheme(): Promise<any | null> {
+  const v = String((window as any).config?.VITE_MAP_THEME || '').trim()
+  if (!v) return null
+  if (!/[/.]/.test(v)) return resolveTheme(v)
+  try {
+    const res = await fetch(v, { cache: 'no-cache' })
+    return res.ok ? await res.json() : null
+  } catch (e) {
+    console.warn('[h2zMap] 主题取不到，用默认：', v, e)
+    return null
+  }
+}
 
 export type RoomState = 'busy' | 'free'
 export interface MapStates {
@@ -169,10 +180,26 @@ export async function startH2z(
   bytes: Uint8Array,
   opts: { roomNames: string[]; onReady: () => void; onError: (e: unknown) => void },
 ): Promise<H2zHandle> {
+  // 包里的 points.json / theme.json（地图条目由 loadMap 读）
+  let pkgPoints: any = null
+  let pkgTheme: any = null
+  try {
+    const files = unzipSync(bytes, { filter: (f) => f.name === 'points.json' || f.name === 'theme.json' })
+    if (files['points.json']) pkgPoints = JSON.parse(strFromU8(files['points.json']))
+    if (files['theme.json']) pkgTheme = JSON.parse(strFromU8(files['theme.json']))
+  } catch (e) {
+    console.warn('[h2zMap] 包里的 points.json / theme.json 读不出来：', e)
+  }
+  const cfgTheme = await configTheme()
+  // 地图自己的默认主题要等模型装好才知道；先按前两级 + 墙板默认定，装好后再看一次
+  let T: any = resolveTheme(cfgTheme || pkgTheme || PAD_DEFAULT_THEME) || resolveTheme(PAD_DEFAULT_THEME)
+  const O = () => T.overlay || {}
+  const bgOf = () => T.scene?.background || '#090909'
+
   const wrap = document.createElement('div')
-  wrap.style.cssText = 'position:absolute;inset:0;overflow:hidden;background:#090909'
+  wrap.style.cssText = `position:absolute;inset:0;overflow:hidden;background:${bgOf()}`
   const layer = document.createElement('div')
-  layer.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:1;font-family:"PingFang SC","Microsoft YaHei",sans-serif'
+  layer.style.cssText = `position:absolute;inset:0;pointer-events:none;z-index:1;font-family:${O().font || 'sans-serif'}`
   container.appendChild(wrap)
 
   let mineTarget: string | null = null
@@ -184,7 +211,6 @@ export async function startH2z(
   let lights: { id: string; pos: THREE.Vector3; name: string; keys: string[]; room: string }[] = []
 
   const viewer: any = new Viewer(wrap, {
-    palette: { skyDay: BG, skyNight: BG, studioSky: BG },
     emit: (type: string, payload: any) => {
       if (type === 'labels') draw(payload)
       else if (type === 'error') opts.onError(payload)
@@ -196,7 +222,8 @@ export async function startH2z(
   // 画面清晰度：按屏幕实际像素渲染。v-scale-screen 会把整页 CSS 缩放，canvas 要乘上这个缩放；上限 2 保 pad 的 GPU
   const sharpen = () => {
     const css = wrap.getBoundingClientRect().width / Math.max(1, wrap.clientWidth)
-    const ratio = Math.min(2, Math.max(1.5, (window.devicePixelRatio || 1) * (css || 1)))
+    const [lo, hi] = Array.isArray(T.scene?.pixelRatio) ? T.scene.pixelRatio : [1.5, 2]
+    const ratio = Math.min(hi, Math.max(lo, (window.devicePixelRatio || 1) * (css || 1)))
     if (Math.abs(viewer.renderer.getPixelRatio() - ratio) > 0.01) {
       viewer.renderer.setPixelRatio(ratio)
       viewer._resize?.()
@@ -214,18 +241,21 @@ export async function startH2z(
   function roomLabel(text: string, kind: 'mine' | 'busy' | 'free' | 'room', mineState?: RoomState) {
     const e = document.createElement('div')
     e.style.cssText = 'position:absolute;left:0;top:0;white-space:nowrap;border-radius:999px;line-height:1;will-change:transform;'
-    const dot = kind === 'busy' ? '#ff5a5a' : kind === 'free' ? '#3ddc84' : ''
-    const tag = kind === 'busy' ? '占用' : kind === 'free' ? '空闲' : kind === 'mine' ? '当前' : ''
+    const o = O()
+    const busy = o.busy || {}, free = o.free || {}, mineT = o.mine || {}, room = o.room || {}, meet = o.meeting || {}
+    const dot = kind === 'busy' ? busy.color : kind === 'free' ? free.color : ''
+    const tag = kind === 'busy' ? busy.text || '占用' : kind === 'free' ? free.text || '空闲' : kind === 'mine' ? mineT.tag || '当前' : ''
     e.dataset.kind = kind
     if (kind === 'mine') {
-      e.style.cssText += 'background:#ff8a3d;color:#fff;font-weight:700;padding:6px 12px;box-shadow:0 0 0 2px rgba(255,138,61,.35),0 4px 12px rgba(0,0,0,.5);z-index:3'
-      const st = mineState === 'busy' ? '<span style="margin-left:8px;font-size:.8em;padding:1px 6px;border-radius:999px;background:#d93838">占用</span>' : mineState === 'free' ? '<span style="margin-left:8px;font-size:.8em;padding:1px 6px;border-radius:999px;background:#1f9d5a">空闲</span>' : ''
+      e.style.cssText += `background:${mineT.bg};color:${mineT.fg};font-weight:700;padding:6px 12px;box-shadow:0 0 0 2px ${mineT.bg}59,0 4px 12px rgba(0,0,0,.5);z-index:3`
+      const badge = (x: any, d: string) => `<span style="margin-left:8px;font-size:.8em;padding:1px 6px;border-radius:999px;background:${x.badge || x.color}">${x.text || d}</span>`
+      const st = mineState === 'busy' ? badge(busy, '占用') : mineState === 'free' ? badge(free, '空闲') : ''
       e.innerHTML = `<span style="font-size:.78em;opacity:.9;margin-right:6px;padding:1px 6px;border-radius:999px;background:rgba(0,0,0,.18)">${tag}</span>${text}${st}`
     } else if (dot) {
-      e.style.cssText += `background:rgba(12,17,26,.86);color:#fff;font-weight:600;padding:5px 10px;border:1px solid ${dot}66;z-index:2`
+      e.style.cssText += `background:${meet.bg};color:${meet.fg};font-weight:600;padding:5px 10px;border:1px solid ${dot}66;z-index:2`
       e.innerHTML = `<span style="display:inline-block;width:.6em;height:.6em;border-radius:50%;background:${dot};margin-right:6px;vertical-align:.05em;box-shadow:0 0 6px ${dot}"></span>${text}<span style="margin-left:6px;color:${dot};font-size:.82em">${tag}</span>`
     } else {
-      e.style.cssText += 'background:rgba(12,17,26,.72);color:#c9d3e0;font-weight:500;padding:4px 8px;border:1px solid rgba(255,255,255,.08);z-index:1'
+      e.style.cssText += `background:${room.bg};color:${room.fg};font-weight:${room.weight || 500};padding:4px 8px;border:1px solid ${room.border || 'transparent'};z-index:1`
       e.textContent = text
     }
     return e
@@ -237,9 +267,10 @@ export async function startH2z(
   }
   function paintLight(e: HTMLDivElement, on: boolean | undefined) {
     e.dataset.on = String(on)
-    e.style.background = on ? 'radial-gradient(circle,#fff6c8 0%,#ffd23f 45%,rgba(255,210,63,0) 72%)' : on === false ? 'rgba(20,26,36,.9)' : '#262d38'
-    e.style.border = on ? 'none' : on === false ? '2px solid #a7b0bd' : '1px dashed #59626f'
-    e.style.boxShadow = on ? '0 0 14px 6px rgba(255,210,63,.55)' : 'none'
+    const onC = O().lightOn || '#ffd23f', offC = O().lightOff || '#a7b0bd'
+    e.style.background = on ? `radial-gradient(circle,#fffbe8 0%,${onC} 45%,${onC}00 72%)` : on === false ? 'rgba(20,26,36,.9)' : '#262d38'
+    e.style.border = on ? 'none' : on === false ? `2px solid ${offC}` : '1px dashed #59626f'
+    e.style.boxShadow = on ? `0 0 14px 6px ${onC}8c` : 'none'
     return e
   }
 
@@ -247,8 +278,9 @@ export async function startH2z(
     const w = wrap.clientWidth, h = wrap.clientHeight
     const dist = viewer.camera.position.distanceTo(viewer.controls.target)
     // 字号随缩放：看整层 13px，拉近逐步放大到 20px
-    const scale = Math.min(1.55, Math.max(1, Math.pow(fitDist / Math.max(dist, 0.01), 0.35)))
-    const base = 13 * scale
+    const [fsLo, fsHi] = Array.isArray(O().fontScale) ? O().fontScale : [1, 1.55]
+    const scale = Math.min(fsHi, Math.max(fsLo, Math.pow(fitDist / Math.max(dist, 0.01), 0.35)))
+    const base = (O().size || 13) * scale
     const seen = new Set<string>()
     // 先排优先级：本房间 > 会议室（有状态）> 其他；互相挡住时后面的隐藏
     const rooms = (list || []).filter((l) => l.kind === 'room' && l.visible && l.text && l.x > -50 && l.y > -50 && l.x < w + 50 && l.y < h + 50)
@@ -262,7 +294,7 @@ export async function startH2z(
       let e = pool.get(key)
       if (e && e.dataset.look !== look) { e.remove(); pool.delete(key); e = undefined }
       e = el(key, () => { const x = roomLabel(l.text, kind as any, roomState.get(l.id)); x.dataset.look = look; return x })
-      const fs = kind === 'mine' ? base * 1.25 : kind === 'room' ? base : base * 1.08
+      const fs = kind === 'mine' ? base * (O().mine?.scale || 1.25) : kind === 'room' ? base : base * (O().meeting?.scale || 1.08)
       e.style.fontSize = `${fs.toFixed(1)}px`
       const bw = e.offsetWidth || l.text.length * fs + 24, bh = e.offsetHeight || fs + 12
       const box = [l.x - bw / 2, l.y - bh / 2, l.x + bw / 2, l.y + bh / 2]
@@ -338,29 +370,21 @@ export async function startH2z(
     const loaded = await loadMap(bytes, viewer, { decoderPath: DECODER_PATH })
     viewer.setModel(loaded)
     viewer.environment?.('sunny', 14)
-    // 压暗楼层（材质是这次加载新建的，直接改）
-    const done = new Set<any>()
-    loaded.root.traverse((o: any) => {
-      if (!o.isMesh) return
-      for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
-        if (!m || done.has(m) || !m.color) continue
-        done.add(m)
-        m.color.multiplyScalar(DIM).lerp(TINT, TINT_MIX)
-        if (m.emissive) m.emissive.multiplyScalar(DIM)
-      }
-    })
-    viewer.renderer.toneMappingExposure = EXPOSURE
-    // 「平面」模式 = 俯视（旧地图默认也是 2D）；房间名由我们自己画，关掉模型里的标签图层
+    // 主题：配置和包里都没指定时，看地图自己的默认（semantics.theme）
+    if (!cfgTheme && !pkgTheme && viewer.model?.semantics?.theme) T = resolveTheme(viewer.model.semantics.theme) || T
+    viewer.theme(T)
+    wrap.style.background = bgOf()
+    // 模式（墙板默认「平面」= 俯视）；房间名由我们自己画，关掉模型里的标签图层
+    const modeId = T.camera?.mode || 'plan'
     const modes: any[] = viewer.model?.semantics?.modes || []
-    if (modes.some((m) => m.id === 'plan')) viewer.mode('plan')
+    if (modes.some((m) => m.id === modeId)) viewer.mode(modeId)
     else viewer.top?.()
     for (const id of ['deviceLabels']) viewer.layer?.(id, false)
 
     // 点位（灯）：points.json 里 lighting / light 类；key = 点位编号、绑定设备编号 / id、名字
     try {
-      const files = unzipSync(bytes, { filter: (f) => f.name === 'points.json' })
-      if (files['points.json']) {
-        const pj = JSON.parse(strFromU8(files['points.json']))
+      if (pkgPoints) {
+        const pj = pkgPoints
         lights = (pj.points || [])
           .filter((p: any) => !p.deleted && /light/i.test(p.kind) && !/box/i.test(p.kind) && Array.isArray(p.pos))
           .map((p: any) => ({
@@ -394,11 +418,12 @@ export async function startH2z(
       viewer.overlay?.updateMatrixWorld(true)
       viewer.overlay?.traverse((o: any) => {
         if (!o.isMesh) return
-        const fill = new THREE.Mesh(o.geometry, new THREE.MeshBasicMaterial({ color: 0xff8a3d, transparent: true, opacity: 0.3, depthTest: false, depthWrite: false, toneMapped: false }))
+        const mt = O().mine || {}
+        const fill = new THREE.Mesh(o.geometry, new THREE.MeshBasicMaterial({ color: mt.fill || '#ff8a3d', transparent: true, opacity: mt.fillOpacity ?? 0.3, depthTest: false, depthWrite: false, toneMapped: false }))
         fill.matrixAutoUpdate = false
         fill.matrix.copy(o.matrixWorld)
         fill.renderOrder = 30
-        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, 30), new THREE.LineBasicMaterial({ color: 0xff8a3d, transparent: true, opacity: 0.95, depthTest: false, toneMapped: false }))
+        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, 30), new THREE.LineBasicMaterial({ color: mt.edge || mt.fill || '#ff8a3d', transparent: true, opacity: 0.95, depthTest: false, toneMapped: false }))
         edges.matrixAutoUpdate = false
         edges.matrix.copy(o.matrixWorld)
         edges.renderOrder = 31
@@ -409,8 +434,9 @@ export async function startH2z(
       const roomPts = ok ? samplePoints(viewer.overlay, 200) : []
       viewer.highlight([]) // 几何拿到了，viewer 自己的高亮层不要了（用上面自己画的）
       const r = roomPts.length ? rectOf(roomPts, long) : { center: new THREE.Vector3(mine.position[0], 0, mine.position[2]), long, lenLong: 0, lenShort: 0, top: floorRect?.top ?? 3 }
-      r.lenLong = Math.max(r.lenLong * 1.8, FOCUS_MIN_SPAN)
-      r.lenShort = Math.max(r.lenShort * 1.8, FOCUS_MIN_SPAN * 0.6)
+      const span = T.camera?.focusMinSpan ?? 26, k = T.camera?.focusRoomScale ?? 1.8
+      r.lenLong = Math.max(r.lenLong * k, span)
+      r.lenShort = Math.max(r.lenShort * k, span * 0.6)
       r.top = floorRect?.top ?? r.top
       // 取景框不出楼层：在楼层的长 / 短方向上把中心收回来（取景框比楼层还大时居中）
       if (floorRect) {
@@ -430,7 +456,7 @@ export async function startH2z(
       if (!w || !h || k === last) return
       last = k
       sharpen()
-      if (floorRect) fitDist = fitTop(viewer, floorRect, w, h) // 整层的距离 = 字号基准
+      if (floorRect) fitDist = fitTop(viewer, floorRect, w, h, T.camera?.margin ?? 1.12) // 整层的距离 = 字号基准
       if (focusRect) fitTop(viewer, focusRect, w, h, 1.0)
     }
     fitObserver = new ResizeObserver(refit)
