@@ -4,11 +4,12 @@ import { getServerConfig } from '@/config/servers'
 import type { SpaceContext } from '@/utils/mqttTopics'
 import { getPadCode } from '@/utils/logClk'
 import { getPadDisplay } from '@/api/pad'
+import { isH2zBytes, startH2z, type H2zHandle, type MapStates } from '@/services/h2zMap'
 
 // wallPad 地图区显示服务：2.5D 地图单例（懒加载 + 模板生命周期内单实例常驻）
 //
 // 显示规则：地图区由「本 pad 的 display_json（= 云端 content_config 级联物化结果）」驱动
-//   ① 配了 map(.acmap)      → 优先 2.5D，下载/初始化失败或 20s 超时自动降级到图片
+//   ① 配了 map（.h2z 楼层交付包 或 旧 .acmap，按文件内容识别）→ 优先地图，下载/初始化失败或 20s 超时自动降级到图片
 //   ② 只配了 mapImage(图片) → 优先图片
 //   ③ 没配（display_json 里没有 map/mapImage）或配置取不到 → 模板内置默认图（MapCanvas 的 slot 兜底）
 // 兜底链固定为：map(.acmap) → mapimage(图片) → 静态默认图。
@@ -57,6 +58,10 @@ export interface MapDetail {
   matched?: 'materialId' | 'materialId-miss' | 'floor-token' | 'single-asset' | 'none'
   /** 失败原因细节（错误信息 / 打不开的图片地址） */
   error?: string
+  /** 地图素材格式：h2z（楼层交付包）/ acmap（旧 2.5D） */
+  format?: 'h2z' | 'acmap'
+  /** .h2z：地图上找到并高亮的本 pad 房间名（空 = 没找到） */
+  room?: string
 }
 
 export const mapState = reactive({
@@ -79,6 +84,10 @@ const THEME_URL = `${BASE_URL}static/theme/theme.json`
 const MAP_KEY = 'KMED1W0N50YIWIYJCUNLYPMJ49JDLASE'
 
 let _map: any = null
+/** .h2z 地图（@h2z/viewer）；和 _map（旧 AirocovMap）同一时间只会有一个 */
+let _h2z: H2zHandle | null = null
+/** 页面喂进来的实时状态（灯、会议室）；地图晚于状态就绪时补上 */
+let _states: MapStates = {}
 let _blobUrl: string | null = null
 let _sdkPromise: Promise<void> | null = null
 let _loadPromise: Promise<void> | null = null
@@ -265,6 +274,10 @@ function clearWatchdog() {
 
 // SDK 无公开 destroy()；释放 = 停渲染循环 + renderer.dispose(forceContextLoss) + 移除 DOM + 回收 blob
 function cleanupMap() {
+  if (_h2z) {
+    _h2z.dispose()
+    _h2z = null
+  }
   if (_map) {
     try {
       _map.enabled = false
@@ -317,18 +330,44 @@ async function startMap(
   onTimeout: () => void,
 ): Promise<boolean> {
   try {
-    await ensureSdk()
     clearWatchdog()
-    // 看门狗：SDK 无 error 回调，下载/初始化卡死时兜底
+    // 看门狗：下载 / 初始化卡死时兜底（旧 SDK 没有 error 回调）
     _watchdog = window.setTimeout(() => {
       console.warn('[mapViewer] map load timeout, fallback')
       cleanupMap()
       onTimeout()
     }, LOAD_TIMEOUT)
     const bytes = await downloadBytes(file.url)
+    const bound = readBoundSpace()
+    // 楼层交付包 .h2z（新）：按内容识别，不看后缀
+    if (isH2zBytes(new Uint8Array(bytes))) {
+      mapState.detail.format = 'h2z'
+      _h2z = await startH2z(container, new Uint8Array(bytes), {
+        roomNames: [bound.roomName, bound.floorAreaName].filter(Boolean),
+        onReady: () => {
+          if (mapState.status !== 'loading') return // 看门狗已兜底
+          clearWatchdog()
+          mapState.status = 'ready'
+          mapState.reason = 'map-asset'
+          console.info('[mapViewer] h2z map ready:', file.name)
+        },
+        onError: (e) => console.warn('[mapViewer] h2z viewer error:', e),
+      })
+      // 看门狗先触发了：迟到的实例直接释放
+      if (mapState.status !== 'ready') {
+        _h2z.dispose()
+        _h2z = null
+        return mapState.status === 'loading' ? false : true
+      }
+      mapState.detail.room = _h2z.highlighted || ''
+      _h2z.setStates(_states)
+      return true
+    }
+    // 旧 .acmap：AirocovMap SDK 只在真正要用时加载
+    mapState.detail.format = 'acmap'
+    await ensureSdk()
     const blob = new Blob([bytes])
     _blobUrl = URL.createObjectURL(blob)
-    const bound = readBoundSpace()
     const highlightName = bound.roomName || bound.floorAreaName || undefined
     _map = new window.AirocovMap.Map({
       container,
@@ -486,6 +525,11 @@ export async function ensureMap(container: HTMLElement): Promise<void> {
 
 // canvas 迁移到新容器：SDK 每帧 resize() 读 config.container 尺寸，改指后自愈
 export function attachMap(container: HTMLElement) {
+  if (_h2z && mapState.status === 'ready') {
+    _h2z.attach(container)
+    _h2z.pause(false)
+    return
+  }
   if (!_map || mapState.status !== 'ready') return
   try {
     const canvas = _map.render?.renderer?.domElement
@@ -506,8 +550,22 @@ export function attachMap(container: HTMLElement) {
   }
 }
 
-// no-op：容器 display:none 后渲染循环自动缩至 0×0，重显自愈
-export function detachMap() {}
+// 旧 SDK：no-op（容器 display:none 后渲染循环自动缩至 0×0，重显自愈）；.h2z：看不见时停渲染，省 pad 的 GPU
+export function detachMap() {
+  _h2z?.pause(true)
+}
+
+/**
+ * 地图上的实时状态（只对 .h2z 地图有效）：照明页喂灯的开关，会议室页喂占用 / 空闲。
+ * 灯的 key = 点位编号 / 绑定设备编号 / 设备 id；会议室的 key = 房间名。可以反复调，按 key 合并。
+ */
+export function setMapStates(states: MapStates) {
+  _states = {
+    lights: { ...(_states.lights || {}), ...(states.lights || {}) },
+    rooms: { ...(_states.rooms || {}), ...(states.rooms || {}) },
+  }
+  _h2z?.setStates(states)
+}
 
 export function destroyMap() {
   clearWatchdog()
