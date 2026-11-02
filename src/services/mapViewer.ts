@@ -4,7 +4,7 @@ import { getServerConfig } from '@/config/servers'
 import type { SpaceContext } from '@/utils/mqttTopics'
 import { getPadCode } from '@/utils/logClk'
 import { getPadDisplay } from '@/api/pad'
-import { isH2zBytes, startH2z, type H2zHandle } from '@/services/h2zMap'
+import { isH2zBytes, startH2z, type H2zHandle, type MapStates } from '@/services/h2zMap'
 
 // wallPad 地图区显示服务：2.5D 地图单例（懒加载 + 模板生命周期内单实例常驻）
 //
@@ -86,6 +86,8 @@ const MAP_KEY = 'KMED1W0N50YIWIYJCUNLYPMJ49JDLASE'
 let _map: any = null
 /** .h2z 地图（@h2z/viewer）；和 _map（旧 AirocovMap）同一时间只会有一个 */
 let _h2z: H2zHandle | null = null
+/** 页面喂进来的实时状态（灯、会议室）；地图晚于状态就绪时补上 */
+let _states: MapStates = {}
 let _blobUrl: string | null = null
 let _sdkPromise: Promise<void> | null = null
 let _loadPromise: Promise<void> | null = null
@@ -358,6 +360,7 @@ async function startMap(
         return mapState.status === 'loading' ? false : true
       }
       mapState.detail.room = _h2z.highlighted || ''
+      _h2z.setStates(_states)
       return true
     }
     // 旧 .acmap：AirocovMap SDK 只在真正要用时加载
@@ -550,6 +553,18 @@ export function attachMap(container: HTMLElement) {
 // 旧 SDK：no-op（容器 display:none 后渲染循环自动缩至 0×0，重显自愈）；.h2z：看不见时停渲染，省 pad 的 GPU
 export function detachMap() {
   _h2z?.pause(true)
+}
+
+/**
+ * 地图上的实时状态（只对 .h2z 地图有效）：照明页喂灯的开关，会议室页喂占用 / 空闲。
+ * 灯的 key = 点位编号 / 绑定设备编号 / 设备 id；会议室的 key = 房间名。可以反复调，按 key 合并。
+ */
+export function setMapStates(states: MapStates) {
+  _states = {
+    lights: { ...(_states.lights || {}), ...(states.lights || {}) },
+    rooms: { ...(_states.rooms || {}), ...(states.rooms || {}) },
+  }
+  _h2z?.setStates(states)
 }
 
 export function destroyMap() {
