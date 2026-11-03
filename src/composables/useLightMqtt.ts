@@ -107,8 +107,9 @@ export function useLightMqtt() {
     requestConfig()
     configTimer = setInterval(requestConfig, 30000)
 
-    // 4) Request current status
-    mqtt.publish(topics.lightAction(c), { action: 'getDevice' })
+    // 4) 不再往控制主题 /iot/action/light/... 发 { action: 'getDevice' } 查询：
+    //    老系统取设备 + 状态只走 /iot/setting/get/device（上面 requestConfig，响应里带每路 status），
+    //    现场照明网关会把控制主题上不认识的 action 当成指令执行（实测墙板刷新一次就关灯）。
   }
 
   setup()
