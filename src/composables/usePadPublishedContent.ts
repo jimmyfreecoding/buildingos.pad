@@ -9,7 +9,8 @@ import { getServerConfig } from '@/config/servers'
 import { getPadCode } from '@/utils/logClk'
 
 /**
- * 会议室门牌「云端下发素材」：背景图 / logo / 二维码，全部走 edge（与 wallPad 取发布内容同一链路）
+ * pad「云端下发素材」：背景图 / logo / 二维码，全部走 edge（与 wallPad 地图取发布内容同一链路）
+ * 使用方：meetingPad（logo/二维码/背景）、switchPad / wallPad（左上角 logo）
  *
  *   MQTT 设备配置响应 pad[0].code（usePadHeartbeat 写入 getPadCode）
  *     → 边端 GET /api/pad/display?spaceCode=&deviceCode=（display_json = 云端 content_config 级联物化结果）
@@ -135,7 +136,7 @@ export function usePadPublishedContent() {
       _filesCache = files.length ? { key, files, at: Date.now() } : null
       return files
     } catch (e) {
-      console.warn('[meetingPad] getSpaceFiles failed:', e)
+      console.warn('[padContent] getSpaceFiles failed:', e)
       _filesCache = null
       return []
     }
@@ -201,14 +202,14 @@ export function usePadPublishedContent() {
       _cache = { key, logo, qr, bgs: nextBgs, at: Date.now() }
       lastKey = key
       apply(logo, qr, nextBgs)
-      console.log('[meetingPad] 云端素材 →', {
+      console.log('[padContent] 云端素材 →', {
         logo: logo || '(无 → geely 兜底)',
         qr: qr || '(无 → 扫码无效兜底)',
         bgs: nextBgs.length ? nextBgs : '(无 → 主题内置兜底)',
         source: data?.displaySource,
       })
     } catch (e) {
-      console.warn('[meetingPad] getPadDisplay failed → 全部使用兜底素材:', e)
+      console.warn('[padContent] getPadDisplay failed → 全部使用兜底素材:', e)
       lastKey = key
       apply('', '', [])
     } finally {

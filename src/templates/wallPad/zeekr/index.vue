@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import VScaleScreen from 'v-scale-screen'
 import { useZeekrData } from './useZeekrData'
+import { usePadPublishedContent } from '@/composables/usePadPublishedContent'
 
 const {
   obj, isWuxiui, sosAnimate, sosAnimateDia, disabledSos,
@@ -206,7 +207,10 @@ const bgWC = new URL('./assets/images/bgWC.png', import.meta.url).href
 const wuxiuBg = new URL('./assets/images/wuxiuBgNew.jpg', import.meta.url).href
 const wuxiu = new URL('./assets/images/wuxiuNew.png', import.meta.url).href
 const bg1 = new URL('./assets/images/bgNew1.jpg', import.meta.url).href
-const logoUrl = new URL('./assets/images/geely.png', import.meta.url).href
+// 左上角 logo：云端发布内容（edge display_json 的 logo 素材）→ geely 兜底（与 switchPad / meetingPad 同一链路）
+const geelyLogo = new URL('./assets/images/geely.png', import.meta.url).href
+const { publishedLogoUrl } = usePadPublishedContent()
+const logoUrl = computed(() => publishedLogoUrl.value || geelyLogo)
 const bottomBg = new URL('./assets/images/bottomBg.png', import.meta.url).href
 const jingBg = new URL('./assets/images/jingBg.png', import.meta.url).href
 const jingling = new URL('./assets/images/jingling.png', import.meta.url).href
@@ -232,7 +236,7 @@ const floorImg = new URL('./assets/images/floor.jpg', import.meta.url).href
 
         <!-- 顶部栏 -->
         <div style="position:absolute;top:0;width:100%;padding:80px 100px;z-index:1;" class="flex-row justify-between">
-          <div style="width:15%;"><img :src="logoUrl" style="width:100%;height:auto;cursor:pointer;" @click="onLogoClick" /></div>
+          <div style="width:15%;"><img :src="logoUrl" style="display:block;width:100%;height:auto;max-height:80px;object-fit:contain;object-position:left center;cursor:pointer;" @click="onLogoClick" /></div>
           <div class="flex-col align-center" style="cursor:pointer;" @click="onTimeClick">
             <div style="font-size:40px;line-height:10px;">{{ timeStr }}</div>
             <div style="margin-top:24px;font-size:16px;opacity:0.8;" class="flex-row align-center">

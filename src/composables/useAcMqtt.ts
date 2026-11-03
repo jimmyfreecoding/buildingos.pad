@@ -192,6 +192,21 @@ export function useAcMqtt() {
     queryGroupStatus()
   }
 
+  /**
+   * 群控开机/关机（绝对状态，非 toggle）
+   * 面板上"空调开/空调关"这类按钮语义是绝对值：回显滞后时用 toggle 会把 on 又发成 on
+   * （连点两次状态就乱了）。与 useLightMqtt().setAll(on) 对齐。
+   */
+  const setPower = (on: boolean) => {
+    if (!ctx.value) { console.warn('[AcMqtt] setPower: no ctx'); return }
+    const action = on ? 'on' : 'off'
+    const topic = topics.acAction(ctx.value)
+    console.log('[AcMqtt] setPower:', action, 'topic:', topic)
+    mqtt.publish(topic, { action })
+    logAc('群控', topic, { action })
+    queryGroupStatus()
+  }
+
   const setTemp = (delta: number) => {
     if (!ctx.value) { console.warn('[AcMqtt] setTemp: no ctx'); return }
     const newTemp = ac.value.temp + delta
@@ -298,6 +313,7 @@ export function useAcMqtt() {
     ac,
     ctx,
     togglePower,
+    setPower,
     setTemp,
     setMode,
     setSpeed,

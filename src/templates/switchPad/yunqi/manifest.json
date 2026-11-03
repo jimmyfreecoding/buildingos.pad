@@ -1,0 +1,7 @@
+{
+  "name": "云起 4寸标准屏",
+  "description": "4寸 1:1 开关屏（场景 / 空调 / 窗帘），字体、字号、控件与云起原厂截图逐像素对齐",
+  "version": "1.0.0",
+  "author": "BuildingOS",
+  "padType": "switchPad"
+}

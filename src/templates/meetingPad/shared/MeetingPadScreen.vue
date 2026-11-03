@@ -80,7 +80,7 @@ import PadMeetList from './components/PadMeetList.vue'
 import PadErweima from './components/PadErweima.vue'
 import PadClearTime from './components/PadClearTime.vue'
 import { useMeetingPadData } from './useMeetingPadData'
-import { usePadPublishedContent } from './usePadPublishedContent'
+import { usePadPublishedContent } from '@/composables/usePadPublishedContent'
 
 const props = withDefaults(defineProps<{
   /** 主题主色：会议中状态底色 / 进行中标签 / 进度条色族基准 */

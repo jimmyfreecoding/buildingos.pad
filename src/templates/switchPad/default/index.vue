@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useLightMqtt } from '@/composables/useLightMqtt'
 import { useAcMqtt } from '@/composables/useAcMqtt'
 import { isConnected } from '@/utils/mqtt'
+import { usePadPublishedContent } from '@/composables/usePadPublishedContent'
 
 const router = useRouter()
 import type { AcMode, FanSpeed } from '@/types/device'
@@ -47,6 +48,11 @@ onUnmounted(() => {
 const { lights, toggleLight, setAll } = useLightMqtt()
 const { ac, toggleDevicePower, setDeviceTemp, setDeviceMode, setDeviceSpeed, togglePower } = useAcMqtt()
 
+// --- Logo：云端发布内容（edge display_json 的 logo 素材）→ geely 兜底，与 wallPad / meetingPad 同一链路 ---
+const geelyLogo = new URL('./assets/images/geely.png', import.meta.url).href
+const { publishedLogoUrl } = usePadPublishedContent()
+const logoSrc = computed(() => publishedLogoUrl.value || geelyLogo)
+
 // --- Logo triple-tap → init ---
 const logoTapCount = ref(0)
 let logoTapTimer: ReturnType<typeof setTimeout> | null = null
@@ -60,6 +66,25 @@ const onLogoClick = () => {
   if (logoTapTimer) clearTimeout(logoTapTimer)
   logoTapTimer = setTimeout(() => { logoTapCount.value = 0 }, 800)
 }
+
+// --- 铺满屏幕：640 设计稿整体等比缩放（与 yunqi 模板一致）---
+// 4 寸方屏有 640×640 / 674×674 等多种规格，按 min(宽,高)/640 缩放，任意 1:1 屏都铺满不留黑边
+const DESIGN = 640
+const scale = ref(1)
+const fitScreen = () => {
+  const w = window.innerWidth || DESIGN
+  const h = window.innerHeight || DESIGN
+  scale.value = Math.min(w, h) / DESIGN
+}
+onMounted(() => {
+  fitScreen()
+  window.addEventListener('resize', fitScreen)
+  window.addEventListener('orientationchange', fitScreen)
+})
+onUnmounted(() => {
+  window.removeEventListener('resize', fitScreen)
+  window.removeEventListener('orientationchange', fitScreen)
+})
 
 // --- Screen state ---
 const screen = ref(0)
@@ -277,7 +302,7 @@ const onSliderUp = (e: PointerEvent) => {
 </script>
 
 <template>
-  <div class="w-full h-full flex items-center justify-center bg-[#111]">
+  <div class="w-full h-full flex items-center justify-center bg-[#111] overflow-hidden">
     <!-- Confirm Dialog -->
     <div
       v-if="dialogVisible"
@@ -305,6 +330,7 @@ const onSliderUp = (e: PointerEvent) => {
     <!-- Main Frame -->
     <div
       class="frame"
+      :style="{ transform: `scale(${scale})` }"
       @pointerdown="onDown"
       @pointerup="onUp"
     >
@@ -314,7 +340,7 @@ const onSliderUp = (e: PointerEvent) => {
 
       <!-- Header -->
       <div class="hdr">
-        <span class="brand" style="cursor:pointer" @click.stop="onLogoClick">smart</span>
+        <img class="brand-logo" :src="logoSrc" alt="logo" @click.stop="onLogoClick" />
         <span class="clock">{{ clock }}</span>
         <span class="dot-live"></span>
       </div>
@@ -513,7 +539,8 @@ const onSliderUp = (e: PointerEvent) => {
   background: #0a0a0b;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 30px 70px rgba(0,0,0,.5);
+  flex-shrink: 0;
+  transform-origin: center center;
   -webkit-user-select: none;
   user-select: none;
   touch-action: none;
@@ -543,6 +570,19 @@ const onSliderUp = (e: PointerEvent) => {
   font: 700 13px/1 Archivo, sans-serif;
   letter-spacing: .24em;
   color: rgba(255,255,255,.85);
+}
+
+/* 与 wallPad 左上角 logo 等比：wallPad 为 1920 画布宽 15%（288px），开关屏 640 画布 → 96px；
+   限高防止云端下发方形/竖版 logo 撑高头部（wallPad 80px → 640 画布约 28px） */
+.brand-logo {
+  display: block;
+  width: 96px;
+  height: auto;
+  max-height: 28px;
+  object-fit: contain;
+  object-position: left center;
+  cursor: pointer;
+  -webkit-user-drag: none;
 }
 
 .clock {
