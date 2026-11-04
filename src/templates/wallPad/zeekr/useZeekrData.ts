@@ -36,24 +36,38 @@ export function useZeekrData() {
   const { ac: mqttAc, togglePower, setTemp, setMode: mqttSetMode, setSpeed } = useAcMqtt()
 
   // --- Outdoor weather → background video (参考原项目 setInitBg) ---
+  // overlay = 视频上黑色遮罩的不透明度（index.vue 用它保证白色文字可读）。
+  // 遮罩原先统一 0.7：亮素材没问题，但 rain / snow 素材本身偏暗，再叠上 .bg-shdow 渐变，
+  // 画面只剩约 13/255，肉眼等同纯黑 —— 视频其实在播、network 里也有 rain.mp4 请求，却看不出"下雨"。
+  // 因此只放宽偏暗素材的遮罩，晴/多云/阴保持 0.7 不变。想调观感只改这张表。
+  // 素材平均亮度（0~255，ffmpeg signalstats）：rain≈93 snow≈110 sun≈141 cloud≈156 overcast≈160
+  const WEATHER_BG = {
+    sun: { file: 'sun.mp4', overlay: 0.7 },
+    cloud: { file: 'cloud.mp4', overlay: 0.7 },
+    overcast: { file: 'overcast.mp4', overlay: 0.7 },
+    rain: { file: 'rain.mp4', overlay: 0.4 },
+    snow: { file: 'snow.mp4', overlay: 0.45 },
+  } as const
+
   const setInitBg = () => {
     const today = mock.outside.value.today
     if (!today) return
     mock.bgParams.type = 'video'
-    let file = 'sun.mp4'
+    let bg: (typeof WEATHER_BG)[keyof typeof WEATHER_BG] = WEATHER_BG.sun
     if (today === '多云') {
-      file = 'cloud.mp4'
+      bg = WEATHER_BG.cloud
     } else if (today === '阴' || today.indexOf('雾') !== -1 || today.indexOf('霾') !== -1) {
-      file = 'overcast.mp4'
+      bg = WEATHER_BG.overcast
     } else if (today === '晴') {
-      file = 'sun.mp4'
+      bg = WEATHER_BG.sun
     } else if (today.indexOf('雨') !== -1) {
-      file = 'rain.mp4'
+      bg = WEATHER_BG.rain
     } else if (today.indexOf('雪') !== -1) {
-      file = 'snow.mp4'
+      bg = WEATHER_BG.snow
     }
     const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`
-    mock.bgParams.urls = [{ url: `${base}video/${file}` }]
+    mock.bgParams.overlay = bg.overlay
+    mock.bgParams.urls = [{ url: `${base}video/${bg.file}` }]
   }
 
   // --- Outdoor weather (MQTT updates mock ref in place) ---

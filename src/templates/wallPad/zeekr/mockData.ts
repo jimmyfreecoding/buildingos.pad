@@ -54,6 +54,8 @@ export const outside = ref({
 export const bgParams = reactive({
   type: 'image' as 'image' | 'video',
   urls: [{ url: '' }],
+  // 视频上黑色遮罩的不透明度（0~1）；由 useZeekrData 的 WEATHER_BG 按天气素材亮度设置
+  overlay: 0.7,
 })
 
 // ====== 卫生间占位（传感器兜底） ======
