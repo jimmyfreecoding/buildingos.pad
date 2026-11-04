@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { ensureMap, attachMap, detachMap, reportImageError, mapState } from '@/services/mapViewer'
+import { useMapLightStates } from '@/composables/useMapLightStates'
 
 // 2.5D 地图挂载包装：IntersectionObserver 感知可见性，
 // 可见时 ensure+attach（单例复用），不可见时 detach（no-op，实例常驻）
 const root = ref<HTMLElement | null>(null)
+
+// 灯的开关状态喂给 .h2z 地图（只对 .h2z 地图有效，旧 .acmap / 图片不受影响）
+useMapLightStates()
 const host = ref<HTMLElement | null>(null)
 
 let io: IntersectionObserver | null = null

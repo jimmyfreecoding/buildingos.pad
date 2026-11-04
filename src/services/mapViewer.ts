@@ -62,6 +62,8 @@ export interface MapDetail {
   format?: 'h2z' | 'acmap'
   /** .h2z：地图上找到并高亮的本 pad 房间名（空 = 没找到） */
   room?: string
+  /** .h2z：地图上能画灯的点位数（照明类点位 + 绑了照明设备的点位）；0 = 这层 .h2z 里没有灯点，地图上不会画灯 */
+  lightPoints?: number
 }
 
 export const mapState = reactive({
@@ -360,6 +362,7 @@ async function startMap(
         return mapState.status === 'loading' ? false : true
       }
       mapState.detail.room = _h2z.highlighted || ''
+      mapState.detail.lightPoints = _h2z.lightPoints
       _h2z.setStates(_states)
       return true
     }

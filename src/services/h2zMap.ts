@@ -61,7 +61,17 @@ export interface H2zHandle {
   dispose(): void
   /** 本 pad 房间 / 区域在地图上的名字（空 = 没对上，看整层） */
   highlighted: string | null
+  /** 地图上能画灯的点位数（照明类点位 + 绑了照明设备的点位）；0 = 这层 .h2z 里没有灯点，pad 上不会画灯 */
+  lightPoints: number
 }
+
+/** 灯的设备类型（BuildingOS iot_device.type） */
+const LIGHT_DEVICE_TYPE = /^(light|dlight)$/i
+/**
+ * 点位算不算「灯」：照明类点位（不含照明配电箱），或者绑了照明设备的点位。
+ * 楼层模型里没有照明点位时，BuildingOS 设备点位页可以把照明设备绑在别的类别的点位上（「其他」入口），这些也要画。
+ */
+const isLightPoint = (p: any) => (/light/i.test(p.kind) && !/box/i.test(p.kind)) || LIGHT_DEVICE_TYPE.test(String(p.device?.type || ''))
 
 /** 是不是 .h2z / .buildingosmap（zip，里面有 manifest.json）；旧 .acmap 不是 zip */
 export function isH2zBytes(bytes: Uint8Array): boolean {
@@ -325,7 +335,11 @@ export async function startH2z(
       if (x < -20 || y < -20 || x > w + 20 || y > h + 20) continue
       const key = `l:${p.id}`
       const on = lightMap[k]
-      const e = el(key, () => lightDot(on))
+      const e = el(key, () => {
+        const d = lightDot(on)
+        d.dataset.point = String(p.id) // 现场 F12 能看出这个灯点是哪个点位
+        return d
+      })
       if (e.dataset.on !== String(on)) paintLight(e, on)
       const s = on ? size * 2.2 : size * 1.3
       e.style.width = e.style.height = `${s}px`
@@ -338,6 +352,7 @@ export async function startH2z(
 
   const handle: H2zHandle = {
     highlighted: null,
+    lightPoints: 0,
     attach(next: HTMLElement) {
       if (wrap.parentNode !== next) next.appendChild(wrap)
       sharpen()
@@ -381,19 +396,22 @@ export async function startH2z(
     else viewer.top?.()
     for (const id of ['deviceLabels']) viewer.layer?.(id, false)
 
-    // 点位（灯）：points.json 里 lighting / light 类；key = 点位编号、绑定设备编号 / id、名字
+    // 点位（灯）：points.json 里照明类点位 + 绑了照明设备的点位（见 isLightPoint）。
+    // key：绑了设备的用设备编号 / id / 名字（不用点位编号：点位编号可能和别的灯的编号撞上，状态会画到错的点位上）；
+    // 没绑设备的照明点位用点位编号（IOC 里点位编号 = 设备编号的老做法）。
     try {
       if (pkgPoints) {
         const pj = pkgPoints
         lights = (pj.points || [])
-          .filter((p: any) => !p.deleted && /light/i.test(p.kind) && !/box/i.test(p.kind) && Array.isArray(p.pos))
+          .filter((p: any) => !p.deleted && Array.isArray(p.pos) && isLightPoint(p))
           .map((p: any) => ({
             id: p.id,
             pos: new THREE.Vector3(p.pos[0], p.pos[1] + 0.3, p.pos[2]),
             name: p.name,
             room: p.room || '',
-            keys: [p.id, p.device?.code, p.device?.id, p.device?.name].filter((x) => x !== undefined && x !== null && x !== '').map(String),
+            keys: (p.device ? [p.device.code, p.device.id, p.device.name] : [p.id]).filter((x) => x !== undefined && x !== null && x !== '').map(String),
           }))
+        handle.lightPoints = lights.length
       }
     } catch (e) {
       console.warn('[h2zMap] points.json 读不出来，不画灯：', e)
