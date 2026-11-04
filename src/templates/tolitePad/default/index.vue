@@ -8,11 +8,11 @@ import QualityCard from '@/components/QualityCard.vue'
 import { useToliteData } from './useToliteData'
 
 const router = useRouter()
-const { floorName, title, toiletRows, nearbyList, airDisplay, cleaningDisplay, bgVideo } = useToliteData()
+const { floorName, title, toiletRows, nearbyList, airDisplay, cleaningDisplay, bgVideo, bgOverlay } = useToliteData()
 
 const logoUrl = new URL('./assets/images/geely.png', import.meta.url).href
 
-// 背景：收到天气消息才显示视频（70% 遮罩），否则保持深色纯色背景
+// 背景：收到天气消息才显示视频（遮罩不透明度随天气素材亮度而定：晴/多云/阴 70%，雨/雪更低，见 useToliteData 的 WEATHER_BG），否则保持深色纯色背景
 const background = computed(() =>
   bgVideo.value ? { type: 'video' as const, src: bgVideo.value } : null,
 )
@@ -97,7 +97,7 @@ const metrics = computed(() => {
 </script>
 
 <template>
-  <AppBackground v-if="background" :type="background.type" :src="background.src" :overlay-opacity="0.7" />
+  <AppBackground v-if="background" :type="background.type" :src="background.src" :overlay-opacity="bgOverlay" />
   <div class="relative z-10 w-full h-full text-white flex flex-col p-6 box-border overflow-hidden">
 
     <header class="flex justify-between items-start px-2 shrink-0 mb-4">

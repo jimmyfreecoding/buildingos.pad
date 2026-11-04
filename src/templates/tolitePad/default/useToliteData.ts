@@ -106,24 +106,40 @@ export function useToliteData() {
   // --- 外部天气 → 背景视频（与 wallPad zeekr / switchPad 相同） ---
   const outside = ref<{ today?: string }>({})
   const bgVideo = ref<string>('')
+  // 视频上黑色遮罩的不透明度（index.vue 传给 AppBackground）：按天气素材亮度分档，见 WEATHER_BG
+  const bgOverlay = ref<number>(0.7)
+
+  // overlay = 遮罩不透明度，用来保证白色文字可读。原先统一 0.7：亮素材没问题，
+  // 但 rain / snow 素材本身偏暗（平均亮度 0~255：rain≈93 snow≈110，sun≈141 cloud≈156 overcast≈160），
+  // 雪在 0.7 下几乎纯黑、看不出下雪，雨也偏闷。因此只放宽偏暗素材，晴/多云/阴保持 0.7 不变。
+  // 本模板没有 wallPad 的 .bg-shdow 渐变层（只有这一层遮罩），所以数值比 wallPad zeekr 的（雨 0.4 / 雪 0.45）高；
+  // 卡片是 bg-white/10 + 重度模糊，雨 0.5 / 雪 0.55 下标题与数值仍然清晰。想调观感只改这张表。
+  const WEATHER_BG = {
+    sun: { file: 'sun.mp4', overlay: 0.7 },
+    cloud: { file: 'cloud.mp4', overlay: 0.7 },
+    overcast: { file: 'overcast.mp4', overlay: 0.7 },
+    rain: { file: 'rain.mp4', overlay: 0.5 },
+    snow: { file: 'snow.mp4', overlay: 0.55 },
+  } as const
 
   const setInitBg = () => {
     const today = outside.value.today
     if (!today) return
-    let file = 'sun.mp4'
+    let bg: (typeof WEATHER_BG)[keyof typeof WEATHER_BG] = WEATHER_BG.sun
     if (today === '多云') {
-      file = 'cloud.mp4'
+      bg = WEATHER_BG.cloud
     } else if (today === '阴' || today.indexOf('雾') !== -1 || today.indexOf('霾') !== -1) {
-      file = 'overcast.mp4'
+      bg = WEATHER_BG.overcast
     } else if (today === '晴') {
-      file = 'sun.mp4'
+      bg = WEATHER_BG.sun
     } else if (today.indexOf('雨') !== -1) {
-      file = 'rain.mp4'
+      bg = WEATHER_BG.rain
     } else if (today.indexOf('雪') !== -1) {
-      file = 'snow.mp4'
+      bg = WEATHER_BG.snow
     }
     const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`
-    bgVideo.value = `${base}video/${file}`
+    bgOverlay.value = bg.overlay
+    bgVideo.value = `${base}video/${bg.file}`
   }
 
   // --- 结构数据中绑定楼层所有卫生间（code → { name, type }）：名称与性别 type 的权威来源 ---
@@ -601,6 +617,7 @@ export function useToliteData() {
     airDisplay,
     cleaningDisplay,
     bgVideo,
+    bgOverlay,
     outside,
     isConnected: mqtt.isConnected,
   }
